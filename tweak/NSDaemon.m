@@ -35,7 +35,7 @@ static const uint16_t kDaemonPort = 17999;
 - (instancetype)init {
     if ((self = [super init])) {
         _serverBase = [[NSUserDefaults standardUserDefaults]
-            stringForKey:@"NicheShareServer"] ?: @"https://nicheshare.example.com";
+            stringForKey:@"NicheShareServer"] ?: @"https://nichesharer.onrender.com";
         _session = [NSURLSession sessionWithConfiguration:
             [NSURLSessionConfiguration defaultSessionConfiguration]];
     }

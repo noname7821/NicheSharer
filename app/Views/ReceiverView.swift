@@ -6,7 +6,7 @@ struct ReceiverView: View {
     @State private var busy = false
     @State private var notice = ""
     @State private var serverURL = UserDefaults.standard.string(forKey: "NicheShareServer")
-        ?? "https://YOUR-server.onrender.com"
+        ?? "https://nichesharer.onrender.com"
 
     var body: some View {
         NavigationView {
