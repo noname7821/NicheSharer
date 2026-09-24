@@ -1,6 +1,7 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <dlfcn.h>
+#import <objc/message.h>
 #import <IOKit/hid/IOHIDEvent.h>
 #import "NSPrivate.h"
 #import "NSInputInjector.h"
@@ -52,9 +53,13 @@
         CFRelease(event);
         return;
     }
-    id wrapper = [eventClass eventWithType:0];
+    id wrapper = ((id (*)(id, SEL, NSInteger))objc_msgSend)(
+        eventClass, sel_registerName("eventWithType:"), 0);
     [wrapper setValue:(__bridge id)event forKey:@"hidEvent"];
-    [[servicesClass sharedInstance] injectEvent:wrapper];
+    id services = ((id (*)(id, SEL))objc_msgSend)(
+        servicesClass, sel_registerName("sharedInstance"));
+    ((void (*)(id, SEL, id))objc_msgSend)(
+        services, sel_registerName("injectEvent:"), wrapper);
     CFRelease(event);
 }
 
