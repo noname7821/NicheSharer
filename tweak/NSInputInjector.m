@@ -1,10 +1,9 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
+#import <dlfcn.h>
 #import <IOKit/hid/IOHIDEvent.h>
 #import "NSPrivate.h"
 #import "NSInputInjector.h"
-
-// Touch and key injection via backboardd (jailbreak only).
 
 @implementation NSInputInjector {
     uint32_t _fingerIndex;
@@ -28,12 +27,20 @@
     CGSize s = [self screenSize];
     uint64_t now = mach_absolute_time();
     AbsoluteTime t = *(AbsoluteTime *)&now;
-    return IOHIDEventCreateDigitizerFingerEvent(
+    static NSDigitizerFn createFn = NULL;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        createFn = dlsym(RTLD_DEFAULT, "IOHIDEventCreateDigitizerFingerEvent");
+        NSLog(@"[NicheShare] digitizer fn: %p", createFn);
+    });
+    if (!createFn) return NULL;
+    NSHIDEventRef raw = createFn(
         kCFAllocatorDefault, t, finger, finger,
         down ? NSDigitizerEventTouchDown : NSDigitizerEventTouchUp,
         x * s.width, y * s.height, 0.0,
         down ? 1.0 : 0.0, 0.0,
         TRUE, down ? TRUE : FALSE, 0);
+    return (IOHIDEventRef)raw;
 }
 
 - (void)sendHIDEvent:(IOHIDEventRef)event {

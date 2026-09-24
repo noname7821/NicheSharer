@@ -20,6 +20,12 @@ typedef NS_ENUM(NSInteger, BKSHIDEventType) {
 // ---- Opaque surface handle (real type resolved at runtime) ----
 typedef struct __IOSurface *IOSurfaceRef;
 
+// ---- Digitizer event creator (dlsym at runtime, never linked) ----
+typedef const struct __IOHIDEvent *NSHIDEventRef;
+typedef NSHIDEventRef (*NSDigitizerFn)(void *, AbsoluteTime, uint32_t, uint32_t,
+    uint32_t, double, double, double, double, double,
+    unsigned char, unsigned char, uint32_t);
+
 // ---- Digitizer event mask (IOHIDFamily values, headers are private) ----
 enum {
     NSDigitizerEventRange    = 1 << 0,
