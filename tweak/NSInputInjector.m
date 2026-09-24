@@ -45,9 +45,16 @@
 
 - (void)sendHIDEvent:(IOHIDEventRef)event {
     if (!event) return;
-    BKSHIDEvent *wrapper = [BKSHIDEvent eventWithType:BKSHIDEventTypeHIDEvent];
+    Class eventClass = NSClassFromString(@"BKSHIDEvent");
+    Class servicesClass = NSClassFromString(@"BKSHIDServices");
+    if (!eventClass || !servicesClass) {
+        NSLog(@"[NicheShare] backboard classes missing");
+        CFRelease(event);
+        return;
+    }
+    id wrapper = [eventClass eventWithType:0];
     [wrapper setValue:(__bridge id)event forKey:@"hidEvent"];
-    [[BKSHIDServices sharedInstance] injectEvent:wrapper];
+    [[servicesClass sharedInstance] injectEvent:wrapper];
     CFRelease(event);
 }
 

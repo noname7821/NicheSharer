@@ -3,19 +3,7 @@
 // at runtime (dlopen), never linked, so this builds on any SDK.
 #import <Foundation/Foundation.h>
 
-// ---- BackBoardServices (touch / key injection, ObjC only, no link needed) ----
-typedef NS_ENUM(NSInteger, BKSHIDEventType) {
-    BKSHIDEventTypeHIDEvent = 0,
-};
-
-@interface BKSHIDEvent : NSObject
-+ (instancetype)eventWithType:(BKSHIDEventType)type;
-@end
-
-@interface BKSHIDServices : NSObject
-+ (instancetype)sharedInstance;
-- (void)injectEvent:(BKSHIDEvent *)event;
-@end
+// ---- BackBoardServices: NSClassFromString, no link needed ----
 
 // ---- Opaque surface handle (real type resolved at runtime) ----
 typedef struct __IOSurface *IOSurfaceRef;
