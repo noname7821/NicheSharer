@@ -117,7 +117,7 @@ typedef size_t (*NSSurfaceRowFn)(IOSurfaceRef buffer);
     IOSurfaceRef surface = NULL;
     CGSize size = CGSizeZero;
     if (_fbOpen && _fbDisplay && _fbSurface && _surfaceWidth && _surfaceHeight) {
-        io_service_t service = IOServiceGetMatchingService(kIOMainPortDefault,
+        io_service_t service = IOServiceGetMatchingService(kIOMasterPortDefault,
             IOServiceMatching("IOMobileFramebuffer"));
         if (service) {
             NSFrameBufferRef fb = NULL;
