@@ -31,7 +31,8 @@
         kCFAllocatorDefault, t, finger, finger,
         down ? NSDigitizerEventTouchDown : NSDigitizerEventTouchUp,
         x * s.width, y * s.height, 0.0,
-        down ? 1.0 : 0.0, 0.0, 2.5, 2.5, 1.0, 1.0, 0, 0, 0);
+        down ? 1.0 : 0.0, 0.0,
+        TRUE, down ? TRUE : FALSE, 0);
 }
 
 - (void)sendHIDEvent:(IOHIDEventRef)event {
