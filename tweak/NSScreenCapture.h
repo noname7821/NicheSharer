@@ -1,5 +1,5 @@
 #import <Foundation/Foundation.h>
-#import <IOSurface/IOSurface.h>
+#import "NSPrivate.h"
 
 @interface NSScreenCapture : NSObject
 + (instancetype)sharedInstance;

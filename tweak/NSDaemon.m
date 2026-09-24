@@ -1,8 +1,9 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
-#import <IOSurface/IOSurface.h>
+#import <dlfcn.h>
 #import <sys/socket.h>
 #import <netinet/in.h>
+#import "NSPrivate.h"
 #import "NSDaemon.h"
 #import "NSInputInjector.h"
 #import "NSScreenCapture.h"

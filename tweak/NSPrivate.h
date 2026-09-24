@@ -1,7 +1,9 @@
-// Minimal private headers. Only what we call.
+// Minimal private-interface declarations used by the tweak.
+// Only what we call. C functions from private frameworks are loaded
+// at runtime (dlopen), never linked, so this builds on any SDK.
 #import <Foundation/Foundation.h>
 
-// ---- BackBoardServices (touch / key injection) ----
+// ---- BackBoardServices (touch / key injection, ObjC only, no link needed) ----
 typedef NS_ENUM(NSInteger, BKSHIDEventType) {
     BKSHIDEventTypeHIDEvent = 0,
 };
@@ -15,8 +17,7 @@ typedef NS_ENUM(NSInteger, BKSHIDEventType) {
 - (void)injectEvent:(BKSHIDEvent *)event;
 @end
 
-// ---- IOMobileFramebuffer (screen capture) ----
-typedef void *IOMobileFramebufferRef;
-kern_return_t IOMobileFramebufferOpen(io_service_t service, task_port_t owningTask, unsigned int type, IOMobileFramebufferRef *fb);
-kern_return_t IOMobileFramebufferGetMainDisplay(IOMobileFramebufferRef *display);
-kern_return_t IOMobileFramebufferGetLayerDefaultSurface(IOMobileFramebufferRef display, int surface, IOSurfaceRef *surfaceOut);
+// ---- Opaque surface handle (real type resolved at runtime) ----
+typedef struct __IOSurface *IOSurfaceRef;
+typedef int kern_return_t_alias;
+#define NS_KIOReturnSuccess 0
