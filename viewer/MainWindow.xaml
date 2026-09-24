@@ -77,9 +77,12 @@
             <TextBlock x:Name="StatusText" Text="Not connected" Margin="8,0,0,0" Foreground="#A1A1AA" FontWeight="SemiBold"/>
         </StackPanel>
 
-        <!-- Screen -->
-        <Border Grid.Row="2" Background="Black" CornerRadius="14" BorderBrush="#27272A" BorderThickness="1">
-            <Image x:Name="Screen" Stretch="Uniform" MouseLeftButtonDown="Screen_Click"/>
+        <!-- Screen lives in its own window -->
+        <Border Grid.Row="2" Background="Black" CornerRadius="14" BorderBrush="#27272A" BorderThickness="1"
+                MinHeight="120">
+            <TextBlock Text="Screen opens in its own window after connect."
+                       Foreground="#52525B" HorizontalAlignment="Center" VerticalAlignment="Center"
+                       TextWrapping="Wrap" TextAlignment="Center" Margin="16"/>
         </Border>
 
         <!-- Log -->

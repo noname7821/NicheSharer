@@ -1,0 +1,8 @@
+<Window x:Class="NicheShareViewer.ScreenWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="NicheShare Screen" Height="700" Width="400"
+        WindowStartupLocation="CenterScreen"
+        Background="Black">
+    <Image x:Name="ScreenImage" Stretch="Uniform" MouseLeftButtonDown="Screen_Click"/>
+</Window>

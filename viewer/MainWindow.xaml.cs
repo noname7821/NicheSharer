@@ -20,6 +20,7 @@ public partial class MainWindow : Window
     private ClientWebSocket? _ws;
     private CancellationTokenSource? _cts;
     private System.Timers.Timer? _ping;
+    private ScreenWindow? _screen;
 
     public MainWindow()
     {
@@ -70,6 +71,14 @@ public partial class MainWindow : Window
             Log($"joined room {code}");
             ConnectBtn.Visibility = Visibility.Collapsed;
             LeaveBtn.Visibility = Visibility.Visible;
+            Dispatcher.Invoke(() =>
+            {
+                _screen?.Close();
+                _screen = new ScreenWindow(code);
+                _screen.Closed += (_, _) => _screen = null;
+                _screen.Clicked += (x, y) => SendInput($"{{\"t\":\"input\",\"kind\":\"tap\",\"x\":{x:F4},\"y\":{y:F4}}}");
+                _screen.Show();
+            });
 
             // Keep alive.
             _ping = new System.Timers.Timer(25000);
@@ -105,18 +114,9 @@ public partial class MainWindow : Window
                         Dispatcher.Invoke(() => Log("phone status: " + msg.GetProperty("status").ToString()));
                     else if (type == "frame")
                     {
-                        // Base64 jpeg -> screen.
+                        // Base64 jpeg -> extra screen window.
                         var bytes = Convert.FromBase64String(msg.GetProperty("data").GetString()!);
-                        Dispatcher.Invoke(() =>
-                        {
-                            var img = new BitmapImage();
-                            img.BeginInit();
-                            img.CacheOption = BitmapCacheOption.OnLoad;
-                            img.StreamSource = new MemoryStream(bytes);
-                            img.EndInit();
-                            img.Freeze();
-                            Screen.Source = img;
-                        });
+                        Dispatcher.Invoke(() => _screen?.SetFrame(bytes));
                     }
                 }
                 catch { /* ignore bad messages */ }
@@ -139,16 +139,6 @@ public partial class MainWindow : Window
     {
         SendRaw(json);
         Dispatcher.Invoke(() => Log("sent " + json));
-    }
-
-    private void Screen_Click(object sender, MouseButtonEventArgs e)
-    {
-        if (_ws?.State != WebSocketState.Open) return;
-        var p = e.GetPosition(Screen);
-        if (Screen.ActualWidth <= 0 || Screen.ActualHeight <= 0) return;
-        var x = Math.Clamp(p.X / Screen.ActualWidth, 0, 1);
-        var y = Math.Clamp(p.Y / Screen.ActualHeight, 0, 1);
-        SendInput($"{{\"t\":\"input\",\"kind\":\"tap\",\"x\":{x:F4},\"y\":{y:F4}}}");
     }
 
     private void Window_KeyDown(object sender, KeyEventArgs e)
@@ -177,6 +167,8 @@ public partial class MainWindow : Window
         SetStatus(false, text);
         Dispatcher.Invoke(() =>
         {
+            try { _screen?.Close(); } catch { }
+            _screen = null;
             ConnectBtn.Visibility = Visibility.Visible;
             LeaveBtn.Visibility = Visibility.Collapsed;
         });

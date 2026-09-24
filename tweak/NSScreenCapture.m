@@ -114,24 +114,35 @@ typedef size_t (*NSSurfaceRowFn)(IOSurfaceRef buffer);
 
 - (void)grabOnce {
     if (!_running) return;
+    static int grabs = 0;
+    grabs++;
+    BOOL logThis = (grabs <= 3);
     IOSurfaceRef surface = NULL;
     CGSize size = CGSizeZero;
-    if (_fbOpen && _fbDisplay && _fbSurface && _surfaceWidth && _surfaceHeight) {
+    if (!(_fbOpen && _fbDisplay && _fbSurface && _surfaceWidth && _surfaceHeight)) {
+        if (logThis) NSLogBoth(@"[NicheShare] grab: funcs missing");
+    } else {
         io_service_t service = IOServiceGetMatchingService(kIOMasterPortDefault,
             IOServiceMatching("IOMobileFramebuffer"));
-        if (service) {
+        if (!service) {
+            if (logThis) NSLogBoth(@"[NicheShare] grab: no service");
+        } else {
             NSFrameBufferRef fb = NULL;
             if (_fbOpen(service, mach_task_self(), 0, &fb) == 0 && fb) {
                 NSFrameBufferRef display = NULL;
                 if (_fbDisplay(&display) == 0 && display) {
                     if (_fbSurface(display, 0, &surface) == 0 && surface) {
                         size = CGSizeMake(_surfaceWidth(surface), _surfaceHeight(surface));
+                    } else if (logThis) {
+                        NSLogBoth(@"[NicheShare] grab: no surface");
                     }
+                } else if (logThis) {
+                    NSLogBoth(@"[NicheShare] grab: no display");
                 }
+            } else if (logThis) {
+                NSLogBoth(@"[NicheShare] grab: open failed");
             }
             IOObjectRelease(service);
-        } else {
-            NSLogBoth(@"[NicheShare] no framebuffer service");
         }
     }
     if (_handler) {
@@ -147,7 +158,14 @@ typedef size_t (*NSSurfaceRowFn)(IOSurfaceRef buffer);
 // Surface -> downscaled JPEG. All public CoreGraphics/ImageIO.
 - (NSData *)jpegFromSurface:(IOSurfaceRef)surface size:(CGSize)size {
     if (!_surfaceLock || !_surfaceUnlock || !_surfaceBase || !_surfaceRow) return nil;
-    if (size.width < 10 || size.height < 10) return nil;
+    if (size.width < 10 || size.height < 10) {
+        static BOOL logged = NO;
+        if (!logged) {
+            logged = YES;
+            NSLogBoth(@"[NicheShare] jpeg: bad size %f x %f", size.width, size.height);
+        }
+        return nil;
+    }
     if (_surfaceLock(surface, 1, NULL) != 0) return nil;
     NSData *out = nil;
     void *base = _surfaceBase(surface);
