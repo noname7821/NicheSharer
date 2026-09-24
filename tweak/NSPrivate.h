@@ -22,7 +22,7 @@ typedef struct __IOSurface *IOSurfaceRef;
 
 // ---- Digitizer event creator (dlsym at runtime, never linked) ----
 typedef const struct __IOHIDEvent *NSHIDEventRef;
-typedef NSHIDEventRef (*NSDigitizerFn)(void *, AbsoluteTime, uint32_t, uint32_t,
+typedef NSHIDEventRef (*NSDigitizerFn)(const void *, AbsoluteTime, uint32_t, uint32_t,
     uint32_t, double, double, double, double, double,
     unsigned char, unsigned char, uint32_t);
 
