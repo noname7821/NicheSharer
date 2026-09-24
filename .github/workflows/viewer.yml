@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'viewer/**'
+      - '.github/workflows/viewer.yml'
   workflow_dispatch:
 
 jobs:
