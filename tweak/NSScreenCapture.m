@@ -2,14 +2,9 @@
 #import <UIKit/UIKit.h>
 #import <IOSurface/IOSurface.h>
 #import "NSPrivate.h"
+#import "NSScreenCapture.h"
 
 // Screen capture. Phase 3a grabs frames, 3b encodes and sends them.
-@interface NSScreenCapture : NSObject
-+ (instancetype)sharedInstance;
-- (void)startWithHandler:(void (^)(IOSurfaceRef surface, CGSize size))handler;
-- (void)stop;
-@property (nonatomic, readonly) BOOL running;
-@end
 
 @implementation NSScreenCapture {
     BOOL _running;

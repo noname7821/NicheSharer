@@ -2,14 +2,9 @@
 #import <UIKit/UIKit.h>
 #import <IOKit/hid/IOHIDEvent.h>
 #import "NSPrivate.h"
+#import "NSInputInjector.h"
 
 // Touch and key injection via backboardd (jailbreak only).
-@interface NSInputInjector : NSObject
-+ (instancetype)sharedInstance;
-// x/y are 0..1. Returns YES if sent.
-- (BOOL)injectTapAtX:(CGFloat)x y:(CGFloat)y;
-- (BOOL)injectKey:(NSString *)key;
-@end
 
 @implementation NSInputInjector {
     uint32_t _fingerIndex;

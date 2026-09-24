@@ -1,6 +1,9 @@
 #import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
+#import <IOSurface/IOSurface.h>
 #import <sys/socket.h>
 #import <netinet/in.h>
+#import "NSDaemon.h"
 #import "NSInputInjector.h"
 #import "NSScreenCapture.h"
 
@@ -9,11 +12,6 @@
 // - the server over websocket as role=phone
 
 static const uint16_t kDaemonPort = 17999;
-
-@interface NSDaemon : NSObject
-+ (instancetype)sharedInstance;
-- (void)start;
-@end
 
 @implementation NSDaemon {
     BOOL _started;
