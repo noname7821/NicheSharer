@@ -14,6 +14,8 @@ const ROOM_TTL_MS = 10 * 60 * 1000;
 app.use(express.json({ limit: '256kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+app.get('/', (req, res) => res.redirect('/viewer.html'));
+
 const rooms = new Map();
 
 function makeCode() {
