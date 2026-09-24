@@ -26,7 +26,8 @@
 
 - (IOHIDEventRef)digitizerEventWithX:(CGFloat)x y:(CGFloat)y down:(BOOL)down finger:(uint32_t)finger {
     CGSize s = [self screenSize];
-    uint64_t t = mach_absolute_time();
+    uint64_t now = mach_absolute_time();
+    AbsoluteTime t = *(AbsoluteTime *)&now;
     return IOHIDEventCreateDigitizerFingerEvent(
         kCFAllocatorDefault, t, finger, finger,
         down ? NSDigitizerEventTouchDown : NSDigitizerEventTouchUp,
