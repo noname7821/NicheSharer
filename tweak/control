@@ -1,0 +1,9 @@
+Package: com.filmeacc.nicheshare
+Name: NicheShare (receiver tweak)
+Version: 0.1.0
+Architecture: iphoneos-arm64
+Description: On-device receiver for NicheShare remote access (jailbreak).
+Maintainer: mintoo <https://github.com/noname7821>
+Author: mintoo
+Section: Tweaks
+Depends: ellekit | mobilesubstrate, firmware (>= 15.0)

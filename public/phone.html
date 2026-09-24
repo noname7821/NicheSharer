@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NicheShare Phone Sim (test only)</title>
+<link rel="icon" href="data:,">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;background:#0a0a0f;color:#f1f5f9;min-height:100vh}
+.wrap{max-width:480px;margin:0 auto;padding:2rem 1.25rem}
+.card{background:rgba(18,19,22,.45);border:1px solid rgba(39,39,42,.6);border-radius:1.5rem;padding:2rem;text-align:center;margin-bottom:1.25rem}
+.code{font-size:3.5rem;font-weight:800;letter-spacing:.15em;margin:1rem 0}
+button{padding:.8rem 1.6rem;border:none;border-radius:.9rem;font-weight:700;cursor:pointer;font-family:inherit;background:linear-gradient(135deg,#BF5AF2,#8B5CF6);color:#fff;margin:.25rem}
+button.ghost{background:rgba(255,255,255,.06);border:1px solid rgba(39,39,42,.7);color:#e4e4e7}
+.status{font-size:.85rem;color:#a1a1aa;font-weight:600;margin-top:.75rem}
+#log{font-family:monospace;font-size:.75rem;color:#71717a;text-align:left;max-height:220px;overflow:auto;margin-top:1rem;white-space:pre-wrap}
+.note{font-size:.78rem;color:#52525b;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div style="font-weight:700">NicheShare <span style="color:#BF5AF2">Phone</span></div>
+    <div class="code" id="code">------</div>
+    <button id="startBtn">Start sharing</button>
+    <button id="stopBtn" class="ghost" style="display:none">Stop</button>
+    <div class="status" id="status">Idle</div>
+    <div id="log"></div>
+  </div>
+  <p class="note">Test stand-in for the real iPhone receiver. Open <a href="/viewer.html" style="color:#BF5AF2">viewer.html</a> on the "PC" and enter the code.</p>
+</div>
+<script>
+const codeEl = document.getElementById('code');
+const statusEl = document.getElementById('status');
+const logEl = document.getElementById('log');
+const startBtn = document.getElementById('startBtn');
+const stopBtn = document.getElementById('stopBtn');
+let code = null, ws = null, hb = null;
+
+function log(m) {
+  logEl.textContent += `[${new Date().toLocaleTimeString()}] ${m}\n`;
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+startBtn.onclick = async () => {
+  const res = await fetch('/api/room', { method: 'POST' });
+  const data = await res.json();
+  code = data.code;
+  codeEl.textContent = code;
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${proto}//${location.host}/ws?code=${code}&role=phone`);
+  ws.onopen = () => {
+    statusEl.textContent = 'Sharing (simulated)';
+    startBtn.style.display = 'none';
+    stopBtn.style.display = '';
+    log(`room ${code} open`);
+    hb = setInterval(() => {
+      fetch(`/api/room/${code}/heartbeat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: { sharing: true, sim: true } }),
+      }).catch(() => {});
+    }, 20000);
+  };
+  ws.onmessage = (ev) => {
+    let msg;
+    try { msg = JSON.parse(ev.data); } catch { return; }
+    if (msg.t === 'input') log(`INPUT <- ${JSON.stringify(msg)}`);
+  };
+  ws.onclose = () => stop('closed');
+};
+
+function stop(text) {
+  clearInterval(hb);
+  if (ws) { ws.close(); ws = null; }
+  statusEl.textContent = text || 'Idle';
+  startBtn.style.display = '';
+  stopBtn.style.display = 'none';
+}
+stopBtn.onclick = () => stop();
+</script>
+</body>
+</html>
