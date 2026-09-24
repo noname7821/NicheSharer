@@ -5,6 +5,7 @@
 #import <objc/message.h>
 #import <IOKit/hid/IOHIDEvent.h>
 #import "NSPrivate.h"
+#import "NSLogger.h"
 #import "NSInputInjector.h"
 
 @implementation NSInputInjector {
@@ -33,7 +34,7 @@
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         createFn = (NSDigitizerFn)dlsym(RTLD_DEFAULT, "IOHIDEventCreateDigitizerFingerEvent");
-        NSLog(@"[NicheShare] digitizer fn: %p", createFn);
+        NSLogBoth(@"[NicheShare] digitizer fn: %p", createFn);
     });
     if (!createFn) return NULL;
     NSHIDEventRef raw = createFn(
@@ -50,7 +51,7 @@
     Class eventClass = NSClassFromString(@"BKSHIDEvent");
     Class servicesClass = NSClassFromString(@"BKSHIDServices");
     if (!eventClass || !servicesClass) {
-        NSLog(@"[NicheShare] backboard classes missing");
+        NSLogBoth(@"[NicheShare] backboard classes missing");
         CFRelease(event);
         return;
     }
@@ -66,7 +67,7 @@
 
 - (BOOL)injectTapAtX:(CGFloat)x y:(CGFloat)y {
     uint32_t finger = ++_fingerIndex;
-    NSLog(@"[NicheShare] tap %f %f finger %u", x, y, finger);
+    NSLogBoth(@"[NicheShare] tap %f %f finger %u", x, y, finger);
     IOHIDEventRef down = [self digitizerEventWithX:x y:y down:YES finger:finger];
     IOHIDEventRef up = [self digitizerEventWithX:x y:y down:NO finger:finger];
     if (!down || !up) {
@@ -83,7 +84,7 @@
 }
 
 - (BOOL)injectKey:(NSString *)key {
-    NSLog(@"[NicheShare] key %@", key);
+    NSLogBoth(@"[NicheShare] key %@", key);
     return YES;
 }
 

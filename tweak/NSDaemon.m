@@ -5,6 +5,7 @@
 #import <sys/socket.h>
 #import <netinet/in.h>
 #import "NSPrivate.h"
+#import "NSLogger.h"
 #import "NSDaemon.h"
 #import "NSInputInjector.h"
 #import "NSScreenCapture.h"
@@ -47,7 +48,7 @@ static const uint16_t kDaemonPort = 17999;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_BACKGROUND, 0), ^{
         [self acceptLoop];
     });
-    NSLog(@"[NicheShare] daemon on 127.0.0.1:%d", kDaemonPort);
+    NSLogBoth(@"[NicheShare] daemon on 127.0.0.1:%d", kDaemonPort);
 }
 
 #pragma mark - App channel
@@ -190,7 +191,7 @@ static const uint16_t kDaemonPort = 17999;
             ok = [[NSInputInjector sharedInstance] injectKey:key];
         }
     }
-    NSLog(@"[NicheShare] input %@ -> %@", kind, ok ? @"ok" : @"FAILED");
+    NSLogBoth(@"[NicheShare] input %@ -> %@", kind, ok ? @"ok" : @"FAILED");
 }
 
 @end

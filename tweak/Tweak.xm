@@ -1,5 +1,6 @@
 #import <UIKit/UIKit.h>
 #import "NSDaemon.h"
+#import "NSLogger.h"
 
 %hook SpringBoard
 
@@ -12,6 +13,6 @@
 
 %ctor {
     @autoreleasepool {
-        NSLog(@"[NicheShare] tweak loaded");
+        NSLogBoth(@"[NicheShare] tweak loaded");
     }
 }

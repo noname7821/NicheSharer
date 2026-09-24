@@ -2,6 +2,7 @@
 #import <UIKit/UIKit.h>
 #import <dlfcn.h>
 #import "NSPrivate.h"
+#import "NSLogger.h"
 #import "NSScreenCapture.h"
 
 // Screen capture. Tries the private framebuffer at runtime (dlopen, no
@@ -47,14 +48,14 @@ typedef size_t (*NSSurfaceSizeFn)(IOSurfaceRef buffer);
         ];
         for (NSString *p in fbPaths) {
             _fbHandle = dlopen([p UTF8String], RTLD_NOW);
-            if (_fbHandle) { NSLog(@"[NicheShare] framebuffer lib: %@", p); break; }
+            if (_fbHandle) { NSLogBoth(@"[NicheShare] framebuffer lib: %@", p); break; }
         }
         NSArray *sfPaths = @[
             @"/System/Library/Frameworks/IOSurface.framework/IOSurface",
         ];
         for (NSString *p in sfPaths) {
             _surfaceHandle = dlopen([p UTF8String], RTLD_NOW);
-            if (_surfaceHandle) { NSLog(@"[NicheShare] surface lib: %@", p); break; }
+            if (_surfaceHandle) { NSLogBoth(@"[NicheShare] surface lib: %@", p); break; }
         }
         if (_fbHandle) {
             _fbOpen = (NSFBOpenFn)dlsym(_fbHandle, "IOMobileFramebufferOpen");
@@ -67,7 +68,7 @@ typedef size_t (*NSSurfaceSizeFn)(IOSurfaceRef buffer);
         }
         if (!_logged) {
             _logged = YES;
-            NSLog(@"[NicheShare] capture funcs: open=%d display=%d surface=%d w=%d h=%d",
+            NSLogBoth(@"[NicheShare] capture funcs: open=%d display=%d surface=%d w=%d h=%d",
                   _fbOpen != NULL, _fbDisplay != NULL, _fbSurface != NULL,
                   _surfaceWidth != NULL, _surfaceHeight != NULL);
         }
@@ -79,7 +80,7 @@ typedef size_t (*NSSurfaceSizeFn)(IOSurfaceRef buffer);
     [self loadPrivate];
     _handler = [handler copy];
     _running = YES;
-    NSLog(@"[NicheShare] capture started");
+    NSLogBoth(@"[NicheShare] capture started");
     dispatch_queue_t q = dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0);
     _timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, q);
     dispatch_source_set_timer(_timer, dispatch_time(DISPATCH_TIME_NOW, 0),
@@ -95,7 +96,7 @@ typedef size_t (*NSSurfaceSizeFn)(IOSurfaceRef buffer);
     _running = NO;
     if (_timer) { dispatch_source_cancel(_timer); _timer = nil; }
     _handler = nil;
-    NSLog(@"[NicheShare] capture stopped");
+    NSLogBoth(@"[NicheShare] capture stopped");
 }
 
 - (void)grabOnce {
