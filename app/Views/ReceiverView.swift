@@ -18,7 +18,7 @@ struct ReceiverView: View {
                     .padding(.top, 30)
 
                 Text(sharing ? code.isEmpty ? "••••••" : code : "Not sharing")
-                    .font(.system(size: 56, weight: .800, design: .monospaced))
+                    .font(.system(size: 56, weight: .heavy, design: .monospaced))
                     .padding(.vertical, 10)
 
                 HStack(spacing: 10) {
