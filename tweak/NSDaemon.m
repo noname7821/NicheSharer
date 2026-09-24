@@ -4,15 +4,9 @@
 #import "NSInputInjector.h"
 #import "NSScreenCapture.h"
 
-// Receiver daemon. Lives inside SpringBoard via the tweak and talks to:
-//  - the native NicheShare app over plain TCP on 127.0.0.1:17999
-//    (no HTML anywhere on the phone)
-//  - the signaling server over NSURLSessionWebSocketTask as role=phone
-//
-// App protocol (one JSON object per line):
-//   {"cmd":"pair"}   -> {"ok":true,"code":"123456"} / {"ok":false,"error":".."}
-//   {"cmd":"stop"}   -> {"ok":true}
-//   {"cmd":"status"} -> {"ok":true,"sharing":true,"code":"123456"}
+// Receiver daemon. Runs in SpringBoard, talks to:
+// - the app over TCP 127.0.0.1:17999 (pair/stop/status, JSON per line)
+// - the server over websocket as role=phone
 
 static const uint16_t kDaemonPort = 17999;
 
@@ -53,12 +47,12 @@ static const uint16_t kDaemonPort = 17999;
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_BACKGROUND, 0), ^{
         [self acceptLoop];
     });
-    NSLog(@"[NicheShare] daemon on 127.0.0.1:%d server %@", kDaemonPort, _serverBase);
+    NSLog(@"[NicheShare] daemon on 127.0.0.1:%d", kDaemonPort);
 }
 
-#pragma mark - App channel (TCP)
+#pragma mark - App channel
 
-// Single-client accept loop. Blocking calls live on a background thread.
+// Blocking accept loop on a background thread.
 - (void)acceptLoop {
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd < 0) return;
@@ -124,7 +118,7 @@ static const uint16_t kDaemonPort = 17999;
 
 #pragma mark - Signaling
 
-// Synchronous pairing (called on the TCP thread, never main).
+// Pairing runs on the TCP thread, never main.
 - (NSString *)pairSync {
     [self stopSharing];
     NSURL *url = [NSURL URLWithString:[_serverBase stringByAppendingString:@"/api/room"]];
@@ -145,7 +139,6 @@ static const uint16_t kDaemonPort = 17999;
     [self connectWS];
     _sharing = YES;
     [[NSScreenCapture sharedInstance] startWithHandler:^(IOSurfaceRef surface, CGSize size) {
-        // Phase 3a: capture ticks prove the pipeline; frames ship in 3b.
         (void)surface; (void)size;
     }];
     return code;
@@ -160,7 +153,6 @@ static const uint16_t kDaemonPort = 17999;
 }
 
 - (void)connectWS {
-    // NSURLSessionWebSocketTask needs ws(s) scheme, not http(s).
     NSString *wsBase = _serverBase;
     if ([wsBase hasPrefix:@"https://"]) wsBase = [@"wss://" stringByAppendingString:[wsBase substringFromIndex:8]];
     else if ([wsBase hasPrefix:@"http://"]) wsBase = [@"ws://" stringByAppendingString:[wsBase substringFromIndex:7]];

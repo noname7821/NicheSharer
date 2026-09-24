@@ -3,9 +3,7 @@
 #import <IOSurface/IOSurface.h>
 #import "NSPrivate.h"
 
-// Screen capture for the receiver. Phase 3a: grabs frames via
-// IOMobileFramebuffer -> IOSurface and hands raw frames to the daemon.
-// Phase 3b (next): VideoToolbox H.264 encode + WebRTC/datachannel send.
+// Screen capture. Phase 3a grabs frames, 3b encodes and sends them.
 @interface NSScreenCapture : NSObject
 + (instancetype)sharedInstance;
 - (void)startWithHandler:(void (^)(IOSurfaceRef surface, CGSize size))handler;
@@ -35,7 +33,6 @@
     NSLog(@"[NicheShare] capture started");
     dispatch_queue_t q = dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0);
     _timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, q);
-    // Phase 3a cadence: 2 fps status frames. Full rate comes with encoding.
     dispatch_source_set_timer(_timer, dispatch_time(DISPATCH_TIME_NOW, 0),
                               (uint64_t)(0.5 * NSEC_PER_SEC), (uint64_t)(0.1 * NSEC_PER_SEC));
     __weak typeof(self) weakSelf = self;
@@ -70,7 +67,6 @@
         _handler(surface, size);
         CFRelease(surface);
     } else if (_handler) {
-        // Fallback path so Phase 3a still proves the loop without private APIs.
         _handler(NULL, CGSizeZero);
     }
 }

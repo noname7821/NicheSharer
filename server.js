@@ -1,18 +1,6 @@
-// NicheShare signaling server (Phase 1).
-// Room-based pairing like FlashDrop: the iPhone (receiver) opens a room
-// and shows a 6-digit code, the PC joins with that code. This server only
-// relays small messages (status, input events, offers/answers). Screen
-// frames will go peer-to-peer (WebRTC) in Phase 2, not through here.
-//
-// REST:
-//   POST /api/room                 -> { code }            (phone creates room)
-//   GET  /api/room/:code           -> { exists, hasPhone, viewers, status }
-//   POST /api/room/:code/heartbeat { status }            (phone keep-alive)
-// WS:
-//   /ws?code=XXXXXX&role=phone|pc  JSON messages:
-//     pc   -> phone : { t:'input', kind:'tap'|'key', x, y, key }
-//     phone-> pc    : { t:'status', sharing, note }
-//     either        : { t:'ping' } -> { t:'pong' }
+// NicheShare signaling server.
+// Phone opens a room, PC joins with the code.
+// Small messages only (status, input). No video through here.
 
 const express = require('express');
 const http = require('http');
@@ -26,7 +14,7 @@ const ROOM_TTL_MS = 10 * 60 * 1000;
 app.use(express.json({ limit: '256kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-const rooms = new Map(); // code -> { createdAt, phone, pcs:Set, status }
+const rooms = new Map();
 
 function makeCode() {
   let code;
@@ -132,7 +120,7 @@ wss.on('connection', (ws, req) => {
   });
 });
 
-// Sweep expired rooms every minute.
+// Drop old rooms every minute.
 setInterval(() => {
   const now = Date.now();
   for (const [code, room] of rooms) {

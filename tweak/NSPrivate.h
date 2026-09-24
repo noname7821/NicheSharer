@@ -1,5 +1,4 @@
-// Minimal private-interface declarations used by the tweak.
-// Standard practice: only what we call, nothing copied from anywhere.
+// Minimal private headers. Only what we call.
 #import <Foundation/Foundation.h>
 
 // ---- BackBoardServices (touch / key injection) ----
