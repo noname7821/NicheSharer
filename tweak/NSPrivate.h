@@ -2,6 +2,8 @@
 // Only what we call. C functions from private frameworks are loaded
 // at runtime (dlopen), never linked, so this builds on any SDK.
 #import <Foundation/Foundation.h>
+#import <mach/mach_time.h>
+#import <stdint.h>
 
 // ---- BackBoardServices: NSClassFromString, no link needed ----
 

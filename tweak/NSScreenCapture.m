@@ -57,13 +57,13 @@ typedef size_t (*NSSurfaceSizeFn)(IOSurfaceRef buffer);
             if (_surfaceHandle) { NSLog(@"[NicheShare] surface lib: %@", p); break; }
         }
         if (_fbHandle) {
-            _fbOpen = dlsym(_fbHandle, "IOMobileFramebufferOpen");
-            _fbDisplay = dlsym(_fbHandle, "IOMobileFramebufferGetMainDisplay");
-            _fbSurface = dlsym(_fbHandle, "IOMobileFramebufferGetLayerDefaultSurface");
+            _fbOpen = (NSFBOpenFn)dlsym(_fbHandle, "IOMobileFramebufferOpen");
+            _fbDisplay = (NSFBDisplayFn)dlsym(_fbHandle, "IOMobileFramebufferGetMainDisplay");
+            _fbSurface = (NSFBSurfaceFn)dlsym(_fbHandle, "IOMobileFramebufferGetLayerDefaultSurface");
         }
         if (_surfaceHandle) {
-            _surfaceWidth = dlsym(_surfaceHandle, "IOSurfaceGetWidth");
-            _surfaceHeight = dlsym(_surfaceHandle, "IOSurfaceGetHeight");
+            _surfaceWidth = (NSSurfaceSizeFn)dlsym(_surfaceHandle, "IOSurfaceGetWidth");
+            _surfaceHeight = (NSSurfaceSizeFn)dlsym(_surfaceHandle, "IOSurfaceGetHeight");
         }
         if (!_logged) {
             _logged = YES;

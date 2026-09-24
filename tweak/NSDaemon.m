@@ -1,6 +1,7 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <dlfcn.h>
+#import <unistd.h>
 #import <sys/socket.h>
 #import <netinet/in.h>
 #import "NSPrivate.h"

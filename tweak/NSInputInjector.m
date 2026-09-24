@@ -1,6 +1,7 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <dlfcn.h>
+#import <mach/mach_time.h>
 #import <objc/message.h>
 #import <IOKit/hid/IOHIDEvent.h>
 #import "NSPrivate.h"
@@ -31,7 +32,7 @@
     static NSDigitizerFn createFn = NULL;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        createFn = dlsym(RTLD_DEFAULT, "IOHIDEventCreateDigitizerFingerEvent");
+        createFn = (NSDigitizerFn)dlsym(RTLD_DEFAULT, "IOHIDEventCreateDigitizerFingerEvent");
         NSLog(@"[NicheShare] digitizer fn: %p", createFn);
     });
     if (!createFn) return NULL;
@@ -41,7 +42,7 @@
         x * s.width, y * s.height, 0.0,
         down ? 1.0 : 0.0, 0.0,
         TRUE, down ? TRUE : FALSE, 0);
-    return (IOHIDEventRef)raw;
+    return (IOHIDEventRef)(void *)raw;
 }
 
 - (void)sendHIDEvent:(IOHIDEventRef)event {
