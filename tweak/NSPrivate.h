@@ -19,5 +19,12 @@ typedef NS_ENUM(NSInteger, BKSHIDEventType) {
 
 // ---- Opaque surface handle (real type resolved at runtime) ----
 typedef struct __IOSurface *IOSurfaceRef;
-typedef int kern_return_t_alias;
-#define NS_KIOReturnSuccess 0
+
+// ---- Digitizer event mask (IOHIDFamily values, headers are private) ----
+enum {
+    NSDigitizerEventRange    = 1 << 0,
+    NSDigitizerEventTouch    = 1 << 1,
+    NSDigitizerEventPosition = 1 << 2,
+};
+#define NSDigitizerEventTouchDown (NSDigitizerEventRange | NSDigitizerEventTouch | NSDigitizerEventPosition)
+#define NSDigitizerEventTouchUp   (NSDigitizerEventRange)

@@ -29,7 +29,7 @@
     uint64_t t = mach_absolute_time();
     return IOHIDEventCreateDigitizerFingerEvent(
         kCFAllocatorDefault, t, finger, finger,
-        down ? kIOHIDDigitizerEventTouchDown : kIOHIDDigitizerEventTouchUp,
+        down ? NSDigitizerEventTouchDown : NSDigitizerEventTouchUp,
         x * s.width, y * s.height, 0.0,
         down ? 1.0 : 0.0, 0.0, 2.5, 2.5, 1.0, 1.0, 0, 0, 0);
 }
