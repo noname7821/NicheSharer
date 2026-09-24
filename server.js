@@ -113,6 +113,7 @@ wss.on('connection', (ws, req) => {
       return;
     }
     if (role === 'phone' && msg && (msg.t === 'status' || msg.t === 'frame')) {
+      if (msg.t === 'frame' && JSON.stringify(msg).length > 1024 * 1024) return;
       room.status = msg.t === 'status' ? msg.status : room.status;
       const out = JSON.stringify(msg);
       for (const pc of room.pcs) {

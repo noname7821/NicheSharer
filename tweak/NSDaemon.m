@@ -140,9 +140,24 @@ static const uint16_t kDaemonPort = 17999;
     [self connectWS];
     _sharing = YES;
     [[NSScreenCapture sharedInstance] startWithHandler:^(IOSurfaceRef surface, CGSize size) {
-        (void)surface; (void)size;
+        if (!surface) return;
+        NSData *jpeg = [[NSScreenCapture sharedInstance] jpegFromSurface:surface size:size];
+        if (jpeg) [self sendFrame:jpeg];
     }];
     return code;
+}
+
+- (void)sendFrame:(NSData *)jpeg {
+    if (!_ws || !_sharing) return;
+    NSString *b64 = [jpeg base64EncodedStringWithOptions:0];
+    if (!b64) return;
+    NSDictionary *msg = @{@"t": @"frame", @"data": b64};
+    NSData *json = [NSJSONSerialization dataWithJSONObject:msg options:0 error:nil];
+    if (!json) return;
+    [_ws sendMessage:[[NSURLSessionWebSocketMessage alloc] initWithData:json]
+        completionHandler:^(NSError *e) {
+            if (e) NSLogBoth(@"[NicheShare] frame send failed: %@", e);
+        }];
 }
 
 - (void)stopSharing {

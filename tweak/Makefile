@@ -11,6 +11,6 @@ TWEAK_NAME = NicheShare
 
 NicheShare_FILES = Tweak.xm NSDaemon.m NSInputInjector.m NSScreenCapture.m NSLogger.m
 NicheShare_CFLAGS = -fobjc-arc -Wno-deprecated-declarations
-NicheShare_FRAMEWORKS = Foundation UIKit CoreGraphics VideoToolbox
+NicheShare_FRAMEWORKS = Foundation UIKit CoreGraphics VideoToolbox ImageIO
 
 include $(THEOS_MAKE_PATH)/tweak.mk

@@ -1,6 +1,7 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <dlfcn.h>
+#import <ImageIO/ImageIO.h>
 #import "NSPrivate.h"
 #import "NSLogger.h"
 #import "NSScreenCapture.h"
@@ -14,6 +15,9 @@ typedef int (*NSFBOpenFn)(unsigned int service, unsigned int task, unsigned int 
 typedef int (*NSFBDisplayFn)(NSFrameBufferRef *display);
 typedef int (*NSFBSurfaceFn)(NSFrameBufferRef display, int surface, IOSurfaceRef *out);
 typedef size_t (*NSSurfaceSizeFn)(IOSurfaceRef buffer);
+typedef int (*NSSurfaceLockFn)(IOSurfaceRef buffer, unsigned int options, unsigned int *seed);
+typedef void *(*NSSurfaceBaseFn)(IOSurfaceRef buffer);
+typedef size_t (*NSSurfaceRowFn)(IOSurfaceRef buffer);
 
 @implementation NSScreenCapture {
     BOOL _running;
@@ -26,6 +30,10 @@ typedef size_t (*NSSurfaceSizeFn)(IOSurfaceRef buffer);
     NSFBSurfaceFn _fbSurface;
     NSSurfaceSizeFn _surfaceWidth;
     NSSurfaceSizeFn _surfaceHeight;
+    NSSurfaceLockFn _surfaceLock;
+    NSSurfaceLockFn _surfaceUnlock;
+    NSSurfaceBaseFn _surfaceBase;
+    NSSurfaceRowFn _surfaceRow;
     BOOL _logged;
 }
 
@@ -65,6 +73,10 @@ typedef size_t (*NSSurfaceSizeFn)(IOSurfaceRef buffer);
         if (_surfaceHandle) {
             _surfaceWidth = (NSSurfaceSizeFn)dlsym(_surfaceHandle, "IOSurfaceGetWidth");
             _surfaceHeight = (NSSurfaceSizeFn)dlsym(_surfaceHandle, "IOSurfaceGetHeight");
+            _surfaceLock = (NSSurfaceLockFn)dlsym(_surfaceHandle, "IOSurfaceLock");
+            _surfaceUnlock = (NSSurfaceLockFn)dlsym(_surfaceHandle, "IOSurfaceUnlock");
+            _surfaceBase = (NSSurfaceBaseFn)dlsym(_surfaceHandle, "IOSurfaceGetBaseAddress");
+            _surfaceRow = (NSSurfaceRowFn)dlsym(_surfaceHandle, "IOSurfaceGetBytesPerRow");
         }
         if (!_logged) {
             _logged = YES;
@@ -122,6 +134,59 @@ typedef size_t (*NSSurfaceSizeFn)(IOSurfaceRef buffer);
             _handler(NULL, CGSizeZero);
         }
     }
+}
+
+// Surface -> downscaled JPEG. All public CoreGraphics/ImageIO.
+- (NSData *)jpegFromSurface:(IOSurfaceRef)surface size:(CGSize)size {
+    if (!_surfaceLock || !_surfaceUnlock || !_surfaceBase || !_surfaceRow) return nil;
+    if (size.width < 10 || size.height < 10) return nil;
+    if (_surfaceLock(surface, 1, NULL) != 0) return nil;
+    NSData *out = nil;
+    void *base = _surfaceBase(surface);
+    size_t row = _surfaceRow(surface);
+    if (base && row > 0) {
+        CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
+        CGContextRef ctx = CGBitmapContextCreate(base, size.width, size.height, 8, row, cs,
+            kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little);
+        CGImageRef full = ctx ? CGBitmapContextCreateImage(ctx) : NULL;
+        if (ctx) CGContextRelease(ctx);
+        if (cs) CGColorSpaceRelease(cs);
+        if (full) {
+            CGFloat target = 480.0;
+            CGFloat scale = size.width > target ? target / size.width : 1.0;
+            size_t tw = (size_t)(size.width * scale);
+            size_t th = (size_t)(size.height * scale);
+            CGColorSpaceRef cs2 = CGColorSpaceCreateDeviceRGB();
+            CGContextRef small = CGBitmapContextCreate(NULL, tw, th, 8, 0, cs2,
+                kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little);
+            if (cs2) CGColorSpaceRelease(cs2);
+            CGImageRef out_img = NULL;
+            if (small) {
+                CGContextDrawImage(small, CGRectMake(0, 0, tw, th), full);
+                out_img = CGBitmapContextCreateImage(small);
+                CGContextRelease(small);
+            } else {
+                out_img = full;
+                full = NULL;
+            }
+            if (out_img) {
+                NSMutableData *jpeg = [NSMutableData data];
+                CGImageDestinationRef dest = CGImageDestinationCreateWithData(
+                    (__bridge CFMutableDataRef)jpeg, (__bridge CFStringRef)@"public.jpeg", 1, NULL);
+                if (dest) {
+                    NSDictionary *opts = @{(__bridge NSString *)kCGImageDestinationLossyCompressionQuality: @0.45};
+                    CGImageDestinationAddImage(dest, out_img, (__bridge CFDictionaryRef)opts);
+                    CGImageDestinationFinalize(dest);
+                    CFRelease(dest);
+                    if (jpeg.length > 0 && jpeg.length < 400 * 1024) out = jpeg;
+                }
+                CGImageRelease(out_img);
+            }
+            if (full) CGImageRelease(full);
+        }
+    }
+    _surfaceUnlock(surface, 1, NULL);
+    return out;
 }
 
 @end
