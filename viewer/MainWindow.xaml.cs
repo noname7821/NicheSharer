@@ -35,7 +35,12 @@ public partial class MainWindow : Window
         StatusText.Text = text;
     });
 
-    private string BaseUrl() => ServerBox.Text.Trim().TrimEnd('/');
+    private string BaseUrl()
+    {
+        var b = ServerBox.Text.Trim().TrimEnd('/');
+        if (!b.Contains("://")) b = "https://" + b;
+        return b;
+    }
 
     private string WsUrl(string code)
     {
