@@ -151,6 +151,11 @@ static const uint16_t kDaemonPort = 17999;
     if (!_ws || !_sharing) return;
     NSString *b64 = [jpeg base64EncodedStringWithOptions:0];
     if (!b64) return;
+    static int frameCount = 0;
+    frameCount++;
+    if (frameCount <= 3 || frameCount % 25 == 0) {
+        NSLogBoth(@"[NicheShare] frame %d bytes %lu", frameCount, (unsigned long)jpeg.length);
+    }
     NSDictionary *msg = @{@"t": @"frame", @"data": b64};
     NSData *json = [NSJSONSerialization dataWithJSONObject:msg options:0 error:nil];
     if (!json) return;

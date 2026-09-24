@@ -15,7 +15,15 @@
 + (instancetype)sharedInstance {
     static NSInputInjector *shared;
     static dispatch_once_t once;
-    dispatch_once(&once, ^{ shared = [[self alloc] init]; });
+    dispatch_once(&once, ^{
+        shared = [[self alloc] init];
+        // BackBoardServices is not linked and may not be loaded in this
+        // process yet, so load it explicitly before class lookup.
+        void *handle = dlopen(
+            "/System/Library/PrivateFrameworks/BackBoardServices.framework/BackBoardServices",
+            RTLD_NOW);
+        NSLogBoth(@"[NicheShare] backboard lib: %p", handle);
+    });
     return shared;
 }
 
@@ -51,7 +59,6 @@
     Class eventClass = NSClassFromString(@"BKSHIDEvent");
     Class servicesClass = NSClassFromString(@"BKSHIDServices");
     if (!eventClass || !servicesClass) {
-        NSLogBoth(@"[NicheShare] backboard classes missing");
         CFRelease(event);
         return;
     }
@@ -66,6 +73,10 @@
 }
 
 - (BOOL)injectTapAtX:(CGFloat)x y:(CGFloat)y {
+    if (!NSClassFromString(@"BKSHIDEvent") || !NSClassFromString(@"BKSHIDServices")) {
+        NSLogBoth(@"[NicheShare] backboard classes missing");
+        return NO;
+    }
     uint32_t finger = ++_fingerIndex;
     NSLogBoth(@"[NicheShare] tap %f %f finger %u", x, y, finger);
     IOHIDEventRef down = [self digitizerEventWithX:x y:y down:YES finger:finger];
