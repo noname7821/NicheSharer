@@ -2,6 +2,7 @@
 #import <UIKit/UIKit.h>
 #import <dlfcn.h>
 #import <ImageIO/ImageIO.h>
+#import <IOKit/IOKitLib.h>
 #import "NSPrivate.h"
 #import "NSLogger.h"
 #import "NSScreenCapture.h"
@@ -116,14 +117,21 @@ typedef size_t (*NSSurfaceRowFn)(IOSurfaceRef buffer);
     IOSurfaceRef surface = NULL;
     CGSize size = CGSizeZero;
     if (_fbOpen && _fbDisplay && _fbSurface && _surfaceWidth && _surfaceHeight) {
-        NSFrameBufferRef fb = NULL;
-        if (_fbOpen(0, 0, 0, &fb) == 0 && fb) {
-            NSFrameBufferRef display = NULL;
-            if (_fbDisplay(&display) == 0 && display) {
-                if (_fbSurface(display, 0, &surface) == 0 && surface) {
-                    size = CGSizeMake(_surfaceWidth(surface), _surfaceHeight(surface));
+        io_service_t service = IOServiceGetMatchingService(kIOMainPortDefault,
+            IOServiceMatching("IOMobileFramebuffer"));
+        if (service) {
+            NSFrameBufferRef fb = NULL;
+            if (_fbOpen(service, mach_task_self(), 0, &fb) == 0 && fb) {
+                NSFrameBufferRef display = NULL;
+                if (_fbDisplay(&display) == 0 && display) {
+                    if (_fbSurface(display, 0, &surface) == 0 && surface) {
+                        size = CGSizeMake(_surfaceWidth(surface), _surfaceHeight(surface));
+                    }
                 }
             }
+            IOObjectRelease(service);
+        } else {
+            NSLogBoth(@"[NicheShare] no framebuffer service");
         }
     }
     if (_handler) {
