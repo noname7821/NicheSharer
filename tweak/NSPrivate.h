@@ -5,7 +5,11 @@
 #import <mach/mach_time.h>
 #import <stdint.h>
 
-// ---- BackBoardServices: NSClassFromString, no link needed ----
+// ---- Event system (dlsym at runtime, never linked) ----
+typedef const struct __IOHIDEventSystemClient *NSEventSystemClientRef;
+typedef NSEventSystemClientRef (*NSSystemClientCreateFn)(const void *);
+typedef void (*NSSystemClientDispatchFn)(NSEventSystemClientRef, IOHIDEventRef);
+typedef void (*NSSetSenderFn)(IOHIDEventRef, uint64_t);
 
 // ---- Opaque surface handle (real type resolved at runtime) ----
 typedef struct __IOSurface *IOSurfaceRef;

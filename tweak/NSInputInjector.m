@@ -2,7 +2,6 @@
 #import <UIKit/UIKit.h>
 #import <dlfcn.h>
 #import <mach/mach_time.h>
-#import <objc/message.h>
 #import <IOKit/hid/IOHIDEvent.h>
 #import "NSPrivate.h"
 #import "NSLogger.h"
@@ -56,25 +55,38 @@
 
 - (void)sendHIDEvent:(IOHIDEventRef)event {
     if (!event) return;
-    Class eventClass = NSClassFromString(@"BKSHIDEvent");
-    Class servicesClass = NSClassFromString(@"BKSHIDServices");
-    if (!eventClass || !servicesClass) {
+    static NSEventSystemClientRef client = NULL;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        NSSystemClientCreateFn create =
+            (NSSystemClientCreateFn)dlsym(RTLD_DEFAULT, "IOHIDEventSystemClientCreate");
+        if (create) client = create(kCFAllocatorDefault);
+        NSLogBoth(@"[NicheShare] event system: %p", client);
+    });
+    if (!client) {
         CFRelease(event);
         return;
     }
-    id wrapper = ((id (*)(id, SEL, NSInteger))objc_msgSend)(
-        eventClass, sel_registerName("eventWithType:"), 0);
-    [wrapper setValue:(__bridge id)event forKey:@"hidEvent"];
-    id services = ((id (*)(id, SEL))objc_msgSend)(
-        servicesClass, sel_registerName("sharedInstance"));
-    ((void (*)(id, SEL, id))objc_msgSend)(
-        services, sel_registerName("injectEvent:"), wrapper);
+    NSSenderFn setSender =
+        (NSSenderFn)dlsym(RTLD_DEFAULT, "IOHIDEventSetSenderID");
+    if (setSender) setSender(event, 0x8000000817319372ULL);
+    NSSystemClientDispatchFn dispatchEv =
+        (NSSystemClientDispatchFn)dlsym(RTLD_DEFAULT, "IOHIDEventSystemClientDispatchEvent");
+    if (dispatchEv) {
+        dispatchEv(client, event);
+    } else {
+        NSLogBoth(@"[NicheShare] dispatch missing");
+    }
     CFRelease(event);
 }
 
 - (BOOL)injectTapAtX:(CGFloat)x y:(CGFloat)y {
-    if (!NSClassFromString(@"BKSHIDEvent") || !NSClassFromString(@"BKSHIDServices")) {
-        NSLogBoth(@"[NicheShare] backboard classes missing");
+    NSSystemClientCreateFn probe =
+        (NSSystemClientCreateFn)dlsym(RTLD_DEFAULT, "IOHIDEventSystemClientCreate");
+    NSSystemClientDispatchFn sender =
+        (NSSystemClientDispatchFn)dlsym(RTLD_DEFAULT, "IOHIDEventSystemClientDispatchEvent");
+    if (!probe || !sender) {
+        NSLogBoth(@"[NicheShare] event system missing");
         return NO;
     }
     uint32_t finger = ++_fingerIndex;
