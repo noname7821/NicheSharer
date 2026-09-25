@@ -67,11 +67,11 @@
         CFRelease(event);
         return;
     }
-    NSSenderFn setSender =
-        (NSSenderFn)dlsym(RTLD_DEFAULT, "IOHIDEventSetSenderID");
-    if (setSender) setSender(event, 0x8000000817319372ULL);
     NSSystemClientDispatchFn dispatchEv =
         (NSSystemClientDispatchFn)dlsym(RTLD_DEFAULT, "IOHIDEventSystemClientDispatchEvent");
+    NSSetSenderFn setSender =
+        (NSSetSenderFn)dlsym(RTLD_DEFAULT, "IOHIDEventSetSenderID");
+    if (setSender) setSender(event, 0x8000000817319372ULL);
     if (dispatchEv) {
         dispatchEv(client, event);
     } else {
