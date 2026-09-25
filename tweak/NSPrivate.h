@@ -4,6 +4,7 @@
 #import <Foundation/Foundation.h>
 #import <mach/mach_time.h>
 #import <stdint.h>
+#import <IOKit/hid/IOHIDEvent.h>
 
 // ---- Event system (dlsym at runtime, never linked) ----
 typedef const struct __IOHIDEventSystemClient *NSEventSystemClientRef;
