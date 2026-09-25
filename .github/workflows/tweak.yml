@@ -34,7 +34,7 @@ jobs:
 
       - name: Stamp version
         run: |
-          sed -i "s/^Version: .*/Version: 0.1.${{ github.run_number }}/" control
+          sed -i "" "s/^Version: .*/Version: 0.1.${{ github.run_number }}/" control
 
       - name: Build package
         run: make package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless
