@@ -36,6 +36,7 @@ typedef size_t (*NSSurfaceRowFn)(IOSurfaceRef buffer);
     NSSurfaceBaseFn _surfaceBase;
     NSSurfaceRowFn _surfaceRow;
     BOOL _logged;
+    io_service_t _service;
 }
 
 + (instancetype)sharedInstance {
@@ -92,6 +93,7 @@ typedef size_t (*NSSurfaceRowFn)(IOSurfaceRef buffer);
     if (_running) return;
     [self loadPrivate];
     _handler = [handler copy];
+    _service = [self findFramebufferService];
     _running = YES;
     NSLogBoth(@"[NicheShare] capture started");
     dispatch_queue_t q = dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0);
@@ -109,7 +111,51 @@ typedef size_t (*NSSurfaceRowFn)(IOSurfaceRef buffer);
     _running = NO;
     if (_timer) { dispatch_source_cancel(_timer); _timer = nil; }
     _handler = nil;
+    if (_service) { IOObjectRelease(_service); _service = 0; }
     NSLogBoth(@"[NicheShare] capture stopped");
+}
+
+// Try every framebuffer service, not just the first match. Logs each.
+- (io_service_t)findFramebufferService {
+    io_iterator_t iter = 0;
+    kern_return_t kr = IOServiceGetMatchingServices(kIOMasterPortDefault,
+        IOServiceMatching("IOMobileFramebuffer"), &iter);
+    if (kr != 0) {
+        NSLogBoth(@"[NicheShare] fb scan failed: 0x%x", kr);
+        return 0;
+    }
+    io_service_t found = 0;
+    int n = 0;
+    io_service_t svc;
+    while ((svc = IOIteratorNext(iter))) {
+        n++;
+        if (!found && [self serviceHasSurface:svc]) {
+            IOObjectRetain(svc);
+            found = svc;
+            NSLogBoth(@"[NicheShare] fb service #%d works", n);
+        }
+        IOObjectRelease(svc);
+    }
+    IOObjectRelease(iter);
+    NSLogBoth(@"[NicheShare] fb services: %d, usable: %d", n, found != 0);
+    return found;
+}
+
+- (BOOL)serviceHasSurface:(io_service_t)service {
+    NSFrameBufferRef fb = NULL;
+    if (!_fbOpen || _fbOpen(service, mach_task_self(), 0, &fb) != 0 || !fb) return NO;
+    NSFrameBufferRef display = NULL;
+    BOOL ok = NO;
+    if (_fbDisplay && _fbDisplay(&display) == 0 && display) {
+        for (int i = 0; i < 8 && !ok; i++) {
+            IOSurfaceRef s = NULL;
+            if (_fbSurface && _fbSurface(display, i, &s) == 0 && s) {
+                ok = YES;
+                CFRelease(s);
+            }
+        }
+    }
+    return ok;
 }
 
 - (void)grabOnce {
@@ -122,43 +168,38 @@ typedef size_t (*NSSurfaceRowFn)(IOSurfaceRef buffer);
     CGSize size = CGSizeZero;
     if (!(_fbOpen && _fbDisplay && _fbSurface && _surfaceWidth && _surfaceHeight)) {
         if (logThis) NSLogBoth(@"[NicheShare] grab: funcs missing");
+    } else if (!_service) {
+        if (logThis) NSLogBoth(@"[NicheShare] grab: no service");
     } else {
-        io_service_t service = IOServiceGetMatchingService(kIOMasterPortDefault,
-            IOServiceMatching("IOMobileFramebuffer"));
-        if (!service) {
-            if (logThis) NSLogBoth(@"[NicheShare] grab: no service");
-        } else {
-            NSFrameBufferRef fb = NULL;
-            int rcOpen = _fbOpen(service, mach_task_self(), 0, &fb);
-            if (rcOpen == 0 && fb) {
-                NSFrameBufferRef display = NULL;
-                int rcDisplay = _fbDisplay(&display);
-                if (rcDisplay == 0 && display) {
-                    int start = layerIndex >= 0 ? layerIndex : 0;
-                    int rcSurface = 0;
-                    for (int i = 0; i < 8 && !surface; i++) {
-                        int idx = (start + i) % 8;
-                        IOSurfaceRef s = NULL;
-                        rcSurface = _fbSurface(display, idx, &s);
-                        if (rcSurface == 0 && s) {
-                            surface = s;
-                            if (layerIndex != idx) {
-                                layerIndex = idx;
-                                NSLogBoth(@"[NicheShare] grab: layer %d", idx);
-                            }
-                            size = CGSizeMake(_surfaceWidth(surface), _surfaceHeight(surface));
+        NSFrameBufferRef fb = NULL;
+        int rcOpen = _fbOpen(_service, mach_task_self(), 0, &fb);
+        if (rcOpen == 0 && fb) {
+            NSFrameBufferRef display = NULL;
+            int rcDisplay = _fbDisplay(&display);
+            if (rcDisplay == 0 && display) {
+                int start = layerIndex >= 0 ? layerIndex : 0;
+                int rcSurface = 0;
+                for (int i = 0; i < 8 && !surface; i++) {
+                    int idx = (start + i) % 8;
+                    IOSurfaceRef s = NULL;
+                    rcSurface = _fbSurface(display, idx, &s);
+                    if (rcSurface == 0 && s) {
+                        surface = s;
+                        if (layerIndex != idx) {
+                            layerIndex = idx;
+                            NSLogBoth(@"[NicheShare] grab: layer %d", idx);
                         }
+                        size = CGSizeMake(_surfaceWidth(surface), _surfaceHeight(surface));
                     }
-                    if (!surface && logThis) {
-                        NSLogBoth(@"[NicheShare] grab: no surface (surface rc=0x%x)", rcSurface);
-                    }
-                } else if (logThis) {
-                    NSLogBoth(@"[NicheShare] grab: no display (rc=0x%x)", rcDisplay);
+                }
+                if (!surface && logThis) {
+                    NSLogBoth(@"[NicheShare] grab: no surface (surface rc=0x%x)", rcSurface);
                 }
             } else if (logThis) {
-                NSLogBoth(@"[NicheShare] grab: open failed (rc=0x%x)", rcOpen);
+                NSLogBoth(@"[NicheShare] grab: no display (rc=0x%x)", rcDisplay);
             }
-            IOObjectRelease(service);
+        } else if (logThis) {
+            NSLogBoth(@"[NicheShare] grab: open failed (rc=0x%x)", rcOpen);
         }
     }
     if (_handler) {
@@ -198,37 +239,4 @@ typedef size_t (*NSSurfaceRowFn)(IOSurfaceRef buffer);
             CGFloat scale = size.width > target ? target / size.width : 1.0;
             size_t tw = (size_t)(size.width * scale);
             size_t th = (size_t)(size.height * scale);
-            CGColorSpaceRef cs2 = CGColorSpaceCreateDeviceRGB();
-            CGContextRef small = CGBitmapContextCreate(NULL, tw, th, 8, 0, cs2,
-                kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little);
-            if (cs2) CGColorSpaceRelease(cs2);
-            CGImageRef out_img = NULL;
-            if (small) {
-                CGContextDrawImage(small, CGRectMake(0, 0, tw, th), full);
-                out_img = CGBitmapContextCreateImage(small);
-                CGContextRelease(small);
-            } else {
-                out_img = full;
-                full = NULL;
-            }
-            if (out_img) {
-                NSMutableData *jpeg = [NSMutableData data];
-                CGImageDestinationRef dest = CGImageDestinationCreateWithData(
-                    (__bridge CFMutableDataRef)jpeg, (__bridge CFStringRef)@"public.jpeg", 1, NULL);
-                if (dest) {
-                    NSDictionary *opts = @{(__bridge NSString *)kCGImageDestinationLossyCompressionQuality: @0.45};
-                    CGImageDestinationAddImage(dest, out_img, (__bridge CFDictionaryRef)opts);
-                    CGImageDestinationFinalize(dest);
-                    CFRelease(dest);
-                    if (jpeg.length > 0 && jpeg.length < 400 * 1024) out = jpeg;
-                }
-                CGImageRelease(out_img);
-            }
-            if (full) CGImageRelease(full);
-        }
-    }
-    _surfaceUnlock(surface, 1, NULL);
-    return out;
-}
-
-@end
+            CGColorSpaceRef cs2 = CG                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     
