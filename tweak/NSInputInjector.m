@@ -55,7 +55,7 @@
     AbsoluteTime t = *(AbsoluteTime *)&now;
     uint32_t mask = NSDigitizerEventTouch | NSDigitizerEventIdentity | NSDigitizerEventRange;
     IOHIDEventRef parent = (IOHIDEventRef)createParent(
-        kCFAllocatorDefault, t, 3, 0, 0, mask, 0, 0, 0, 0, 0, 0, 0,
+        kCFAllocatorDefault, now, 3, 0, 0, mask, 0, 0, 0, 0, 0, 0, 0,
         down ? 1 : 0, 0);
     if (!parent) return NULL;
     int builtIn = [self eventField:"kIOHIDEventFieldIsBuiltIn"];
@@ -66,7 +66,7 @@
     if (integrated >= 0) setInt(parent, (uint32_t)integrated, 1);
     double radius = down ? 5.0 : 0.0;
     IOHIDEventRef child = (IOHIDEventRef)createFinger(
-        kCFAllocatorDefault, now, finger, finger, mask,
+        kCFAllocatorDefault, t, finger, finger, mask,
         x, y, 0, 0.0, 90.0,
         down ? 1 : 0, down ? 1 : 0, 0);
     if (!child) {
