@@ -13,6 +13,6 @@
 
 %ctor {
     @autoreleasepool {
-        NSLogBoth(@"[NicheShare] tweak loaded (built %s)", __DATE__);
+        NSLogBoth(@"[NicheShare] tweak loaded (built %s %s)", __DATE__, __TIME__);
     }
 }
