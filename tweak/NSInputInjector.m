@@ -26,31 +26,56 @@
     return shared;
 }
 
-// Screen size in points, portrait.
-- (CGSize)screenSize {
-    UIScreen *screen = [UIScreen mainScreen];
-    CGSize s = screen.bounds.size;
-    return s;
+- (int)eventField:(const char *)name {
+    int *p = dlsym(RTLD_DEFAULT, name);
+    return p ? *p : -1;
 }
 
-- (IOHIDEventRef)digitizerEventWithX:(CGFloat)x y:(CGFloat)y down:(BOOL)down finger:(uint32_t)finger {
-    CGSize s = [self screenSize];
-    uint64_t now = mach_absolute_time();
-    AbsoluteTime t = *(AbsoluteTime *)&now;
-    static NSDigitizerFn createFn = NULL;
+// One full tap side (down or up): parent container plus child finger.
+- (IOHIDEventRef)tapEventDown:(BOOL)down x:(double)x y:(double)y finger:(uint32_t)finger {
+    static NSParentEventFn createParent = NULL;
+    static NSDigitizerFn createFinger = NULL;
+    static NSAppendEventFn appendEv = NULL;
+    static NSSetIntFn setInt = NULL;
+    static NSSetFloatFn setFloat = NULL;
     static dispatch_once_t once;
+    static BOOL ready = NO;
     dispatch_once(&once, ^{
-        createFn = (NSDigitizerFn)dlsym(RTLD_DEFAULT, "IOHIDEventCreateDigitizerFingerEvent");
-        NSLogBoth(@"[NicheShare] digitizer fn: %p", createFn);
+        createParent = (NSParentEventFn)dlsym(RTLD_DEFAULT, "IOHIDEventCreateDigitizerEvent");
+        createFinger = (NSDigitizerFn)dlsym(RTLD_DEFAULT, "IOHIDEventCreateDigitizerFingerEvent");
+        appendEv = (NSAppendEventFn)dlsym(RTLD_DEFAULT, "IOHIDEventAppendEvent");
+        setInt = (NSSetIntFn)dlsym(RTLD_DEFAULT, "IOHIDEventSetIntegerValue");
+        setFloat = (NSSetFloatFn)dlsym(RTLD_DEFAULT, "IOHIDEventSetFloatValue");
+        ready = createParent && createFinger && appendEv && setInt && setFloat;
+        NSLogBoth(@"[NicheShare] event builders: %d", ready);
     });
-    if (!createFn) return NULL;
-    NSHIDEventRef raw = createFn(
-        kCFAllocatorDefault, t, finger, finger,
-        down ? NSDigitizerEventTouchDown : NSDigitizerEventTouchUp,
-        x * s.width, y * s.height, 0.0,
-        down ? 1.0 : 0.0, 0.0,
-        TRUE, down ? TRUE : FALSE, 0);
-    return (IOHIDEventRef)(void *)raw;
+    if (!ready) return NULL;
+    uint64_t now = mach_absolute_time();
+    uint32_t mask = NSDigitizerEventTouch | NSDigitizerEventIdentity | NSDigitizerEventRange;
+    IOHIDEventRef parent = (IOHIDEventRef)createParent(
+        kCFAllocatorDefault, now, 3, 0, 0, mask, 0, 0, 0, 0, 0, 0, 0,
+        down ? 1 : 0, 0);
+    if (!parent) return NULL;
+    int builtIn = [self eventField:"kIOHIDEventFieldIsBuiltIn"];
+    int integrated = [self eventField:"kIOHIDEventFieldDigitizerIsDisplayIntegrated"];
+    int minorF = [self eventField:"kIOHIDEventFieldDigitizerMinorRadius"];
+    int majorF = [self eventField:"kIOHIDEventFieldDigitizerMajorRadius"];
+    if (builtIn >= 0) setInt(parent, (uint32_t)builtIn, 1);
+    if (integrated >= 0) setInt(parent, (uint32_t)integrated, 1);
+    double radius = down ? 5.0 : 0.0;
+    IOHIDEventRef child = (IOHIDEventRef)createFinger(
+        kCFAllocatorDefault, now, finger, finger, mask,
+        x, y, 0, 0.0, 90.0,
+        down ? 1 : 0, down ? 1 : 0, 0);
+    if (!child) {
+        CFRelease(parent);
+        return NULL;
+    }
+    if (minorF >= 0) setFloat(child, (uint32_t)minorF, radius);
+    if (majorF >= 0) setFloat(child, (uint32_t)majorF, radius);
+    appendEv(parent, child, 0);
+    CFRelease(child);
+    return parent;
 }
 
 - (void)sendHIDEvent:(IOHIDEventRef)event {
