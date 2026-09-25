@@ -33,6 +33,7 @@ enum {
     NSDigitizerEventRange    = 1 << 0,
     NSDigitizerEventTouch    = 1 << 1,
     NSDigitizerEventPosition = 1 << 2,
+    NSDigitizerEventIdentity = 1 << 5,
 };
 #define NSDigitizerEventTouchDown (NSDigitizerEventRange | NSDigitizerEventTouch | NSDigitizerEventPosition)
 #define NSDigitizerEventTouchUp   (NSDigitizerEventRange)

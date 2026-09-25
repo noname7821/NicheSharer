@@ -32,6 +32,7 @@
 }
 
 // One full tap side (down or up): parent container plus child finger.
+// x/y arrive normalized 0..1 from the viewer.
 - (IOHIDEventRef)tapEventDown:(BOOL)down x:(double)x y:(double)y finger:(uint32_t)finger {
     static NSParentEventFn createParent = NULL;
     static NSDigitizerFn createFinger = NULL;
@@ -51,9 +52,10 @@
     });
     if (!ready) return NULL;
     uint64_t now = mach_absolute_time();
+    AbsoluteTime t = *(AbsoluteTime *)&now;
     uint32_t mask = NSDigitizerEventTouch | NSDigitizerEventIdentity | NSDigitizerEventRange;
     IOHIDEventRef parent = (IOHIDEventRef)createParent(
-        kCFAllocatorDefault, now, 3, 0, 0, mask, 0, 0, 0, 0, 0, 0, 0,
+        kCFAllocatorDefault, t, 3, 0, 0, mask, 0, 0, 0, 0, 0, 0, 0,
         down ? 1 : 0, 0);
     if (!parent) return NULL;
     int builtIn = [self eventField:"kIOHIDEventFieldIsBuiltIn"];
@@ -116,8 +118,8 @@
     }
     uint32_t finger = ++_fingerIndex;
     NSLogBoth(@"[NicheShare] tap %f %f finger %u", x, y, finger);
-    IOHIDEventRef down = [self digitizerEventWithX:x y:y down:YES finger:finger];
-    IOHIDEventRef up = [self digitizerEventWithX:x y:y down:NO finger:finger];
+    IOHIDEventRef down = [self tapEventDown:YES x:x y:y finger:finger];
+    IOHIDEventRef up = [self tapEventDown:NO x:x y:y finger:finger];
     if (!down || !up) {
         if (down) CFRelease(down);
         if (up) CFRelease(up);
