@@ -129,14 +129,18 @@ typedef size_t (*NSSurfaceRowFn)(IOSurfaceRef buffer);
             if (logThis) NSLogBoth(@"[NicheShare] grab: no service");
         } else {
             NSFrameBufferRef fb = NULL;
-            if (_fbOpen(service, mach_task_self(), 0, &fb) == 0 && fb) {
+            int rcOpen = _fbOpen(service, mach_task_self(), 0, &fb);
+            if (rcOpen == 0 && fb) {
                 NSFrameBufferRef display = NULL;
-                if (_fbDisplay(&display) == 0 && display) {
+                int rcDisplay = _fbDisplay(&display);
+                if (rcDisplay == 0 && display) {
                     int start = layerIndex >= 0 ? layerIndex : 0;
+                    int rcSurface = 0;
                     for (int i = 0; i < 8 && !surface; i++) {
                         int idx = (start + i) % 8;
                         IOSurfaceRef s = NULL;
-                        if (_fbSurface(display, idx, &s) == 0 && s) {
+                        rcSurface = _fbSurface(display, idx, &s);
+                        if (rcSurface == 0 && s) {
                             surface = s;
                             if (layerIndex != idx) {
                                 layerIndex = idx;
@@ -146,13 +150,13 @@ typedef size_t (*NSSurfaceRowFn)(IOSurfaceRef buffer);
                         }
                     }
                     if (!surface && logThis) {
-                        NSLogBoth(@"[NicheShare] grab: no surface");
+                        NSLogBoth(@"[NicheShare] grab: no surface (surface rc=0x%x)", rcSurface);
                     }
                 } else if (logThis) {
-                    NSLogBoth(@"[NicheShare] grab: no display");
+                    NSLogBoth(@"[NicheShare] grab: no display (rc=0x%x)", rcDisplay);
                 }
             } else if (logThis) {
-                NSLogBoth(@"[NicheShare] grab: open failed");
+                NSLogBoth(@"[NicheShare] grab: open failed (rc=0x%x)", rcOpen);
             }
             IOObjectRelease(service);
         }
