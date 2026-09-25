@@ -115,6 +115,7 @@ typedef size_t (*NSSurfaceRowFn)(IOSurfaceRef buffer);
 - (void)grabOnce {
     if (!_running) return;
     static int grabs = 0;
+    static int layerIndex = -1;
     grabs++;
     BOOL logThis = (grabs <= 3);
     IOSurfaceRef surface = NULL;
@@ -131,9 +132,20 @@ typedef size_t (*NSSurfaceRowFn)(IOSurfaceRef buffer);
             if (_fbOpen(service, mach_task_self(), 0, &fb) == 0 && fb) {
                 NSFrameBufferRef display = NULL;
                 if (_fbDisplay(&display) == 0 && display) {
-                    if (_fbSurface(display, 0, &surface) == 0 && surface) {
-                        size = CGSizeMake(_surfaceWidth(surface), _surfaceHeight(surface));
-                    } else if (logThis) {
+                    int start = layerIndex >= 0 ? layerIndex : 0;
+                    for (int i = 0; i < 8 && !surface; i++) {
+                        int idx = (start + i) % 8;
+                        IOSurfaceRef s = NULL;
+                        if (_fbSurface(display, idx, &s) == 0 && s) {
+                            surface = s;
+                            if (layerIndex != idx) {
+                                layerIndex = idx;
+                                NSLogBoth(@"[NicheShare] grab: layer %d", idx);
+                            }
+                            size = CGSizeMake(_surfaceWidth(surface), _surfaceHeight(surface));
+                        }
+                    }
+                    if (!surface && logThis) {
                         NSLogBoth(@"[NicheShare] grab: no surface");
                     }
                 } else if (logThis) {
