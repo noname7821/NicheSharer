@@ -54,10 +54,10 @@ typedef size_t (*NSSurfaceSizeFn)(IOSurfaceRef buffer);
 }
 
 - (CFStringRef)cfKey:(const char *)name {
-    NSCFStringPtr *pp = dlsym(RTLD_DEFAULT, name);
+    NSCFStringPtr pp = (NSCFStringPtr)dlsym(RTLD_DEFAULT, name);
     if (!pp) {
         void *h = dlopen("/System/Library/Frameworks/IOSurface.framework/IOSurface", RTLD_NOW);
-        if (h) pp = dlsym(h, name);
+        if (h) pp = (NSCFStringPtr)dlsym(h, name);
     }
     return pp ? *pp : NULL;
 }
