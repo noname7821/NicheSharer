@@ -62,6 +62,12 @@
     int integrated = [self eventField:"kIOHIDEventFieldDigitizerIsDisplayIntegrated"];
     int minorF = [self eventField:"kIOHIDEventFieldDigitizerMinorRadius"];
     int majorF = [self eventField:"kIOHIDEventFieldDigitizerMajorRadius"];
+    static BOOL fieldsLogged = NO;
+    if (!fieldsLogged) {
+        fieldsLogged = YES;
+        NSLogBoth(@"[NicheShare] fields: builtIn=%d integrated=%d minor=%d major=%d",
+            builtIn, integrated, minorF, majorF);
+    }
     if (builtIn >= 0) setInt(parent, (uint32_t)builtIn, 1);
     if (integrated >= 0) setInt(parent, (uint32_t)integrated, 1);
     double radius = down ? 5.0 : 0.0;
@@ -88,7 +94,12 @@
         NSSystemClientCreateFn create =
             (NSSystemClientCreateFn)dlsym(RTLD_DEFAULT, "IOHIDEventSystemClientCreate");
         if (create) client = create(kCFAllocatorDefault);
-        NSLogBoth(@"[NicheShare] event system: %p", client);
+        NSSystemClientDispatchFn dispatchEv =
+            (NSSystemClientDispatchFn)dlsym(RTLD_DEFAULT, "IOHIDEventSystemClientDispatchEvent");
+        NSSetSenderFn setSender =
+            (NSSetSenderFn)dlsym(RTLD_DEFAULT, "IOHIDEventSetSenderID");
+        NSLogBoth(@"[NicheShare] inject path: client=%p dispatch=%p sender=%p",
+            client, dispatchEv, setSender);
     });
     if (!client) {
         CFRelease(event);
