@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -26,6 +27,7 @@ public partial class MainWindow : Window
     private TcpClient? _usb;
     private StreamReader? _usbReader;
     private StreamWriter? _usbWriter;
+    private Process? _iproxy;
 
     public MainWindow()
     {
@@ -195,12 +197,13 @@ public partial class MainWindow : Window
 
     private void Leave_Click(object sender, RoutedEventArgs e) => Leave("Not connected");
 
-    // USB direct: iPhone USB -> iproxy 18000 18000 -> 127.0.0.1:18000. No relay server.
+    // USB direct: iPhone USB -> bundled iproxy 18000 18000 -> 127.0.0.1:18000. No relay server.
     private async void UsbConnect_Click(object sender, RoutedEventArgs e)
     {
         try
         {
             CloseUsb();
+            if (!await EnsureUsbTunnel()) { SetStatus(false, "USB: no phone (plug in via USB)"); return; }
             _usb = new TcpClient();
             await _usb.ConnectAsync("127.0.0.1", 18000);
             var ns = _usb.GetStream();
@@ -227,11 +230,66 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             SetStatus(false, "USB failed: " + ex.Message);
-            Log("usb: run iproxy 18000 18000 first (phone via USB)");
+            Log("usb: plug phone in via USB");
         }
     }
 
     private static string F(double v) => v.ToString("F4", CultureInfo.InvariantCulture);
+
+    // Starts bundled tools/iproxy/iproxy.exe unless the port is already open.
+    private async Task<bool> EnsureUsbTunnel()
+    {
+        try
+        {
+            using var probe = new TcpClient();
+            using var cts = new CancellationTokenSource(1500);
+            await probe.ConnectAsync("127.0.0.1", 18000, cts.Token);
+            Log("usb: tunnel already open");
+            return true;
+        }
+        catch { /* start our own */ }
+        try
+        {
+            var exe = Path.Combine(AppContext.BaseDirectory, "tools", "iproxy", "iproxy.exe");
+            if (!File.Exists(exe)) { Log("usb: tools\\iproxy\\iproxy.exe missing"); return false; }
+            try { _iproxy?.Kill(); } catch { }
+            _iproxy = Process.Start(new ProcessStartInfo
+            {
+                FileName = exe,
+                Arguments = "18000 18000",
+                CreateNoWindow = true,
+                UseShellExecute = false,
+                WorkingDirectory = Path.GetDirectoryName(exe)!,
+            });
+            Log("usb: iproxy started, waiting for phone...");
+            for (int i = 0; i < 20; i++)
+            {
+                await Task.Delay(500);
+                if (_iproxy?.HasExited == true) { Log("usb: iproxy exited, no phone?"); return false; }
+                try
+                {
+                    using var probe = new TcpClient();
+                    using var cts = new CancellationTokenSource(1000);
+                    await probe.ConnectAsync("127.0.0.1", 18000, cts.Token);
+                    return true;
+                }
+                catch { /* keep waiting */ }
+            }
+            Log("usb: no phone on 18000");
+            return false;
+        }
+        catch (Exception ex) { Log("usb: iproxy start failed: " + ex.Message); return false; }
+    }
+
+    private void KillIproxy()
+    {
+        try
+        {
+            if (_iproxy != null && !_iproxy.HasExited) _iproxy.Kill();
+        }
+        catch { /* ignore */ }
+        _iproxy = null;
+    }
 
     private async Task UsbReceiveLoop()
     {
@@ -294,6 +352,7 @@ public partial class MainWindow : Window
         try { _ws?.Abort(); } catch { }
         _ws = null;
         CloseUsb();
+        KillIproxy();
         SetStatus(false, text);
         Dispatcher.Invoke(() =>
         {
@@ -303,5 +362,12 @@ public partial class MainWindow : Window
             UsbBtn.Visibility = Visibility.Visible;
             LeaveBtn.Visibility = Visibility.Collapsed;
         });
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        KillIproxy();
+        CloseUsb();
+        base.OnClosed(e);
     }
 }

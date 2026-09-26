@@ -9,4 +9,8 @@
     <Version>0.1.0</Version>
   </PropertyGroup>
 
+  <ItemGroup>
+    <None Include="tools\iproxy\*.*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
