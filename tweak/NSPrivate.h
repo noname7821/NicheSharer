@@ -27,6 +27,7 @@ typedef NSHIDEventRef (*NSParentEventFn)(const void *, uint64_t,
 typedef void (*NSAppendEventFn)(NSHIDEventRef, NSHIDEventRef, uint32_t);
 typedef void (*NSSetIntFn)(NSHIDEventRef, uint32_t, int);
 typedef void (*NSSetFloatFn)(NSHIDEventRef, uint32_t, double);
+typedef NSHIDEventRef (*NSKeyEventFn)(const void *, uint64_t, uint32_t, uint32_t, unsigned char, uint32_t);
 
 // ---- Event field IDs (numeric layout of IOHIDEventTypes, facts) ----
 enum {

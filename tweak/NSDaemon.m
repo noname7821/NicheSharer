@@ -4,6 +4,7 @@
 #import <unistd.h>
 #import <sys/socket.h>
 #import <netinet/in.h>
+#import <IOKit/pwr_mgt/IOPM.h>
 #import "NSPrivate.h"
 #import "NSLogger.h"
 #import "NSDaemon.h"
@@ -23,6 +24,7 @@ static const uint16_t kDaemonPort = 17999;
     BOOL _sharing;
     NSURLSessionWebSocketTask *_ws;
     NSURLSession *_session;
+    IOPMAssertionID _wakeAssertion;
 }
 
 + (instancetype)sharedInstance {
@@ -139,6 +141,13 @@ static const uint16_t kDaemonPort = 17999;
     _code = code;
     [self connectWS];
     _sharing = YES;
+    if (IOPMAssertionCreateWithName(CFSTR("NicheShare"),
+            kIOPMAssertionTypeNoDisplaySleep, CFSTR("remote session"),
+            &_wakeAssertion) == 0) {
+        NSLogBoth(@"[NicheShare] stay-awake on");
+    } else {
+        NSLogBoth(@"[NicheShare] stay-awake failed");
+    }
     [[NSScreenCapture sharedInstance] startWithHandler:^(IOSurfaceRef surface, CGSize size) {
         if (!surface) return;
         NSData *jpeg = [[NSScreenCapture sharedInstance] jpegFromSurface:surface size:size];
@@ -170,6 +179,10 @@ static const uint16_t kDaemonPort = 17999;
     _code = nil;
     [_ws cancel];
     _ws = nil;
+    if (_wakeAssertion) {
+        IOPMAssertionRelease(_wakeAssertion);
+        _wakeAssertion = 0;
+    }
     [[NSScreenCapture sharedInstance] stop];
 }
 
@@ -187,12 +200,28 @@ static const uint16_t kDaemonPort = 17999;
     __weak typeof(self) weakSelf = self;
     [_ws receiveMessageWithCompletionHandler:^(NSURLSessionWebSocketMessage *message, NSError *error) {
         __strong typeof(weakSelf) strongSelf = weakSelf;
-        if (!strongSelf || error) return;
+        if (!strongSelf) return;
+        if (error) {
+            NSLogBoth(@"[NicheShare] ws dropped: %@", error.localizedDescription);
+            [strongSelf scheduleReconnect];
+            return;
+        }
         if (message.type == NSURLSessionWebSocketMessageTypeString) {
             [strongSelf handleSignal:message.string];
         }
         [strongSelf listenWS];
     }];
+}
+
+- (void)scheduleReconnect {
+    if (!_sharing) return;
+    [_ws cancel];
+    _ws = nil;
+    NSLogBoth(@"[NicheShare] ws reconnect in 3s");
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)),
+                   dispatch_get_global_queue(QOS_CLASS_BACKGROUND, 0), ^{
+        if (self->_sharing) [self connectWS];
+    });
 }
 
 - (void)handleSignal:(NSString *)raw {

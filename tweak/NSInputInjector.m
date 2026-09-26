@@ -130,8 +130,48 @@
 }
 
 - (BOOL)injectKey:(NSString *)key {
-    NSLogBoth(@"[NicheShare] key %@", key);
+    static NSKeyEventFn createKey = NULL;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        createKey = (NSKeyEventFn)dlsym(RTLD_DEFAULT, "IOHIDEventCreateKeyboardEvent");
+        NSLogBoth(@"[NicheShare] key fn: %p", createKey);
+    });
+    if (!createKey) return NO;
+    uint32_t usage = [self usageForKey:key];
+    if (!usage) {
+        NSLogBoth(@"[NicheShare] key no mapping: %@", key);
+        return NO;
+    }
+    NSLogBoth(@"[NicheShare] key %@ usage %u", key, usage);
+    uint64_t now = mach_absolute_time();
+    IOHIDEventRef down = (IOHIDEventRef)createKey(
+        kCFAllocatorDefault, now, 0x07, usage, 1, 0);
+    IOHIDEventRef up = (IOHIDEventRef)createKey(
+        kCFAllocatorDefault, now, 0x07, usage, 0, 0);
+    if (!down || !up) {
+        if (down) CFRelease(down);
+        if (up) CFRelease(up);
+        return NO;
+    }
+    [self sendHIDEvent:down];
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.06 * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        [self sendHIDEvent:up];
+    });
     return YES;
+}
+
+- (uint32_t)usageForKey:(NSString *)key {
+    if (key.length == 1) {
+        unichar c = [[key lowercaseString] characterAtIndex:0];
+        if (c >= 'a' && c <= 'z') return 0x04 + (c - 'a');
+        if (c >= '1' && c <= '9') return 0x1E + (c - '1');
+        if (c == '0') return 0x27;
+        if (c == ' ') return 0x2C;
+    }
+    if ([key isEqualToString:@"Enter"]) return 0x28;
+    if ([key isEqualToString:@"Backspace"]) return 0x2A;
+    return 0;
 }
 
 @end

@@ -33,10 +33,15 @@ public partial class ScreenWindow : Window
 
     private void Screen_Click(object sender, MouseButtonEventArgs e)
     {
+        var bmp = ScreenImage.Source as BitmapSource;
+        if (bmp == null || bmp.PixelWidth <= 0) return;
+        // Uniform fit letterboxes: map into the real bitmap rect.
+        double scale = Math.Min(ScreenImage.ActualWidth / bmp.PixelWidth, ScreenImage.ActualHeight / bmp.PixelHeight);
+        double dw = bmp.PixelWidth * scale, dh = bmp.PixelHeight * scale;
+        double ox = (ScreenImage.ActualWidth - dw) / 2, oy = (ScreenImage.ActualHeight - dh) / 2;
         var p = e.GetPosition(ScreenImage);
-        if (ScreenImage.ActualWidth <= 0 || ScreenImage.ActualHeight <= 0) return;
-        var x = Math.Clamp(p.X / ScreenImage.ActualWidth, 0, 1);
-        var y = Math.Clamp(p.Y / ScreenImage.ActualHeight, 0, 1);
+        double x = (p.X - ox) / dw, y = (p.Y - oy) / dh;
+        if (x < 0 || x > 1 || y < 0 || y > 1) return;
         Clicked?.Invoke(x, y);
     }
 }
