@@ -69,7 +69,20 @@ public partial class MainWindow : Window
             try { checkUri = new Uri(checkUrl); }
             catch (Exception ex) { SetStatus(false, "Bad server url: " + ex.Message); return; }
             var res = await http.GetAsync(checkUri);
-            if (!res.IsSuccessStatusCode) { SetStatus(false, "No such room (expired?)"); Log($"room check: {checkUrl} -> {(int)res.StatusCode}"); return; }
+            if (!res.IsSuccessStatusCode)
+            {
+                SetStatus(false, "No such room (expired?)");
+                Log($"room check: {checkUrl} -> {(int)res.StatusCode}");
+                try
+                {
+                    // Wrong server? The IPA site answers /api/ipas, signaling answers /api/room.
+                    var probe = await http.GetAsync(new Uri(BaseUrl() + "/api/ipas"));
+                    if (probe.IsSuccessStatusCode)
+                        SetStatus(false, "Wrong server: this is the IPA site. Use the signaling server.");
+                }
+                catch { /* ignore */ }
+                return;
+            }
             var info = JsonDocument.Parse(await res.Content.ReadAsStringAsync()).RootElement;
             if (!info.GetProperty("hasPhone").GetBoolean()) { SetStatus(false, "Phone not connected yet"); return; }
 
