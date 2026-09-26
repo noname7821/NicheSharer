@@ -49,13 +49,16 @@ public partial class MainWindow : Window
     {
         var b = BaseUrl();
         var ws = b.StartsWith("https", StringComparison.OrdinalIgnoreCase) ? "wss:" : "ws:";
-        return ws + b.Substring(b.IndexOf(':')) + $"/ws?code={code}&role=pc";
+        var idx = b.IndexOf(':');
+        var rest = idx >= 0 ? b.Substring(idx) : "//" + b;
+        return ws + rest + $"/ws?code={code}&role=pc";
     }
 
     private async void Connect_Click(object sender, RoutedEventArgs e)
     {
         var code = new string(CodeBox.Text.Trim().Where(char.IsDigit).ToArray());
         if (code.Length != 6) { SetStatus(false, "Code needs 6 digits"); return; }
+        if (string.IsNullOrWhiteSpace(ServerBox.Text)) { SetStatus(false, "Enter server first"); return; }
         try
         {
             // Check room first.
