@@ -64,7 +64,11 @@ public partial class MainWindow : Window
             // Check room first.
             using var http = new HttpClient();
             var checkUrl = $"{BaseUrl()}/api/room/{code}";
-            var res = await http.GetAsync(checkUrl);
+            Log("room check: " + checkUrl);
+            Uri checkUri;
+            try { checkUri = new Uri(checkUrl); }
+            catch (Exception ex) { SetStatus(false, "Bad server url: " + ex.Message); return; }
+            var res = await http.GetAsync(checkUri);
             if (!res.IsSuccessStatusCode) { SetStatus(false, "No such room (expired?)"); Log($"room check: {checkUrl} -> {(int)res.StatusCode}"); return; }
             var info = JsonDocument.Parse(await res.Content.ReadAsStringAsync()).RootElement;
             if (!info.GetProperty("hasPhone").GetBoolean()) { SetStatus(false, "Phone not connected yet"); return; }
@@ -72,7 +76,12 @@ public partial class MainWindow : Window
             // Open socket.
             _cts = new CancellationTokenSource();
             _ws = new ClientWebSocket();
-            await _ws.ConnectAsync(new Uri(WsUrl(code)), _cts.Token);
+            var wsUrl = WsUrl(code);
+            Log("ws url: " + wsUrl);
+            Uri wsUri;
+            try { wsUri = new Uri(wsUrl); }
+            catch (Exception ex) { SetStatus(false, "Bad ws url: " + ex.Message); return; }
+            await _ws.ConnectAsync(wsUri, _cts.Token);
             SetStatus(true, $"Connected to {code}");
             Log($"joined room {code}");
             ConnectBtn.Visibility = Visibility.Collapsed;
