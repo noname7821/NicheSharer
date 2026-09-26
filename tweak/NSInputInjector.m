@@ -212,6 +212,13 @@
 }
 
 - (BOOL)injectHome {
+    // UIKit must run on main, else SpringBoard crashes.
+    if (![NSThread isMainThread]) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self injectHome];
+        });
+        return YES;
+    }
     id app = [UIApplication sharedApplication];
     NSArray *appSels = @[@"_simulateHomeButtonPress", @"simulateHomeButtonPress"];
     for (NSString *name in appSels) {
