@@ -186,6 +186,18 @@ public partial class MainWindow : Window
 
     private void Leave_Click(object sender, RoutedEventArgs e) => Leave("Not connected");
 
+    private void CopyLogs_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var lines = new System.Collections.Generic.List<string>();
+            foreach (var item in LogBox.Items) lines.Add(item?.ToString() ?? "");
+            Clipboard.SetText(string.Join(Environment.NewLine, lines));
+            Log("logs copied to clipboard");
+        }
+        catch { /* ignore */ }
+    }
+
     private void Leave(string text)
     {
         try { _ping?.Stop(); } catch { }
