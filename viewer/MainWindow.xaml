@@ -60,10 +60,7 @@
         <StackPanel Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Center">
             <TextBlock Text="NicheShare" FontSize="20" FontWeight="ExtraBold"/>
             <TextBlock Text=" Viewer" FontSize="20" FontWeight="ExtraBold" Foreground="#BF5AF2"/>
-            <TextBlock Text="  server:" VerticalAlignment="Center" Foreground="#71717A" Margin="16,0,6,0"/>
-            <TextBox x:Name="ServerBox" Width="220" Style="{StaticResource DarkBox}" FontSize="12"
-                     Text="http://localhost:3001"/>
-            <TextBlock Text="  code:" VerticalAlignment="Center" Foreground="#71717A" Margin="12,0,6,0"/>
+            <TextBlock Text="  code:" VerticalAlignment="Center" Foreground="#71717A" Margin="16,0,6,0"/>
             <TextBox x:Name="CodeBox" Width="110" Style="{StaticResource DarkBox}" MaxLength="6"
                      HorizontalContentAlignment="Center" FontFamily="Consolas"/>
             <Button x:Name="ConnectBtn" Content="Connect" Style="{StaticResource MainBtn}" Margin="12,0,0,0" Click="Connect_Click"/>

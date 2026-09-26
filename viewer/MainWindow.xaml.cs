@@ -43,14 +43,7 @@ public partial class MainWindow : Window
         StatusText.Text = text;
     });
 
-    private string BaseUrl()
-    {
-        var b = ServerBox.Text.Trim().TrimEnd('/');
-        if (!b.Contains("://")) b = "https://" + b;
-        // Tolerate pasted page URLs: keep scheme + host only.
-        try { return new Uri(b).GetLeftPart(UriPartial.Authority).TrimEnd('/'); }
-        catch { return b; }
-    }
+    private string BaseUrl() => "https://nichesharer.onrender.com";
 
     private string WsUrl(string code)
     {
@@ -65,7 +58,6 @@ public partial class MainWindow : Window
     {
         var code = new string(CodeBox.Text.Trim().Where(char.IsDigit).ToArray());
         if (code.Length != 6) { SetStatus(false, "Code needs 6 digits"); return; }
-        if (string.IsNullOrWhiteSpace(ServerBox.Text)) { SetStatus(false, "Enter server first"); return; }
         try
         {
             // Check room first.
