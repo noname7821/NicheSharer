@@ -105,7 +105,10 @@ public partial class MainWindow : Window
                 _screen?.Close();
                 _screen = new ScreenWindow(code);
                 _screen.Closed += (_, _) => _screen = null;
-                _screen.Clicked += (x, y) => SendInput($"{{\"t\":\"input\",\"kind\":\"tap\",\"x\":{x.ToString("F4", CultureInfo.InvariantCulture)},\"y\":{y.ToString("F4", CultureInfo.InvariantCulture)}}}");
+                _screen.Tapped += (x, y) => SendInput($"{{\"t\":\"input\",\"kind\":\"tap\",\"x\":{x.ToString("F4", CultureInfo.InvariantCulture)},\"y\":{y.ToString("F4", CultureInfo.InvariantCulture)}}}");
+                _screen.Swiped += (x1, y1, x2, y2) => SendInput($"{{\"t\":\"input\",\"kind\":\"swipe\",\"x1\":{x1.ToString("F4", CultureInfo.InvariantCulture)},\"y1\":{y1.ToString("F4", CultureInfo.InvariantCulture)},\"x2\":{x2.ToString("F4", CultureInfo.InvariantCulture)},\"y2\":{y2.ToString("F4", CultureInfo.InvariantCulture)},\"ms\":280}}");
+                _screen.Scrolled += (x, y, dir) => SendInput($"{{\"t\":\"input\",\"kind\":\"scroll\",\"x\":{x.ToString("F4", CultureInfo.InvariantCulture)},\"y\":{y.ToString("F4", CultureInfo.InvariantCulture)},\"dir\":\"{dir}\"}}");
+                _screen.HomePressed += () => SendInput("{\"t\":\"input\",\"kind\":\"home\"}");
                 _screen.Show();
             });
 

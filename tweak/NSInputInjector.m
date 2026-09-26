@@ -1,6 +1,7 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <dlfcn.h>
+#import <unistd.h>
 #import <mach/mach_time.h>
 #import <IOKit/hid/IOHIDEvent.h>
 #import "NSPrivate.h"
@@ -123,6 +124,101 @@
         [self sendHIDEvent:up];
     });
     return YES;
+}
+
+// Move step for drags: position mask, finger stays down.
+- (IOHIDEventRef)moveEventX:(double)x y:(double)y finger:(uint32_t)finger {
+    static NSParentEventFn createParent = NULL;
+    static NSDigitizerFn createFinger = NULL;
+    static NSAppendEventFn appendEv = NULL;
+    static NSSetIntFn setInt = NULL;
+    static NSSetFloatFn setFloat = NULL;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        createParent = (NSParentEventFn)dlsym(RTLD_DEFAULT, "IOHIDEventCreateDigitizerEvent");
+        createFinger = (NSDigitizerFn)dlsym(RTLD_DEFAULT, "IOHIDEventCreateDigitizerFingerEvent");
+        appendEv = (NSAppendEventFn)dlsym(RTLD_DEFAULT, "IOHIDEventAppendEvent");
+        setInt = (NSSetIntFn)dlsym(RTLD_DEFAULT, "IOHIDEventSetIntegerValue");
+        setFloat = (NSSetFloatFn)dlsym(RTLD_DEFAULT, "IOHIDEventSetFloatValue");
+    });
+    if (!createParent || !createFinger) return NULL;
+    uint64_t now = mach_absolute_time();
+    AbsoluteTime t = *(AbsoluteTime *)&now;
+    uint32_t pmask = NSDigitizerEventPosition | NSDigitizerEventAttribute;
+    uint32_t cmask = NSDigitizerEventPosition | NSDigitizerEventAttribute;
+    IOHIDEventRef parent = (IOHIDEventRef)createParent(
+        kCFAllocatorDefault, now, 3, 0, 0, pmask, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0);
+    if (!parent) return NULL;
+    setInt(parent, NSFieldIsBuiltIn, 1);
+    setInt(parent, NSDigitizerIsDisplayIntegrated, 1);
+    IOHIDEventRef child = (IOHIDEventRef)createFinger(
+        kCFAllocatorDefault, t, finger, finger, cmask,
+        x, y, 0, 0.0, 90.0, 1, 1, 0);
+    if (!child) { CFRelease(parent); return NULL; }
+    setFloat(child, NSDigitizerMinorRadius, 5.0);
+    setFloat(child, NSDigitizerMajorRadius, 5.0);
+    appendEv(parent, child, 0);
+    CFRelease(child);
+    return parent;
+}
+
+- (BOOL)injectSwipeX1:(CGFloat)x1 y1:(CGFloat)y1 x2:(CGFloat)x2 y2:(CGFloat)y2 ms:(int)ms {
+    NSSystemClientCreateFn probe =
+        (NSSystemClientCreateFn)dlsym(RTLD_DEFAULT, "IOHIDEventSystemClientCreate");
+    NSSystemClientDispatchFn sender =
+        (NSSystemClientDispatchFn)dlsym(RTLD_DEFAULT, "IOHIDEventSystemClientDispatchEvent");
+    if (!probe || !sender) return NO;
+    uint32_t finger = 2;
+    NSLogBoth(@"[NicheShare] swipe %f %f -> %f %f", x1, y1, x2, y2);
+    int steps = 8;
+    if (ms < 80) ms = 80;
+    if (ms > 800) ms = 800;
+    IOHIDEventRef down = [self tapEventDown:YES x:x1 y:y1 finger:finger];
+    if (!down) return NO;
+    [self sendHIDEvent:down];
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0), ^{
+        usleep(20000);
+        for (int i = 1; i <= steps; i++) {
+            double t = (double)i / (double)steps;
+            double x = x1 + (x2 - x1) * t;
+            double y = y1 + (y2 - y1) * t;
+            IOHIDEventRef mv = [self moveEventX:x y:y finger:finger];
+            [self sendHIDEvent:mv];
+            usleep((useconds_t)((ms * 1000) / steps));
+        }
+        IOHIDEventRef up = [self tapEventDown:NO x:x2 y:y2 finger:finger];
+        [self sendHIDEvent:up];
+    });
+    return YES;
+}
+
+- (BOOL)injectScrollAtX:(CGFloat)x y:(CGFloat)y dir:(NSString *)dir {
+    CGFloat dist = 0.28;
+    CGFloat cx = MIN(MAX(x, 0.05), 0.95);
+    CGFloat cy = MIN(MAX(y, 0.3), 0.7);
+    if ([dir isEqualToString:@"up"]) {
+        return [self injectSwipeX1:cx y1:cy - dist / 2 x2:cx y2:cy + dist / 2 ms:220];
+    }
+    return [self injectSwipeX1:cx y1:cy + dist / 2 x2:cx y2:cy - dist / 2 ms:220];
+}
+
+- (BOOL)injectHome {
+    id app = [UIApplication sharedApplication];
+    NSArray *sels = @[@"_simulateHomeButtonPress", @"simulateHomeButtonPress",
+                      @"handleHomeButtonSinglePressUp", @"clickedMenuButton"];
+    for (NSString *name in sels) {
+        SEL sel = NSSelectorFromString(name);
+        if ([app respondsToSelector:sel]) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+            [app performSelector:sel];
+#pragma clang diagnostic pop
+            NSLogBoth(@"[NicheShare] home via %@", name);
+            return YES;
+        }
+    }
+    NSLogBoth(@"[NicheShare] home fallback swipe");
+    return [self injectSwipeX1:0.5 y1:0.94 x2:0.5 y2:0.5 ms:320];
 }
 
 - (BOOL)injectKey:(NSString *)key {

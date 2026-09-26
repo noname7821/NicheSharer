@@ -127,7 +127,7 @@ typedef size_t (*NSSurfaceSizeFn)(IOSurfaceRef buffer);
     dispatch_queue_t q = dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0);
     _timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, q);
     dispatch_source_set_timer(_timer, dispatch_time(DISPATCH_TIME_NOW, 0),
-                              (uint64_t)(0.5 * NSEC_PER_SEC), (uint64_t)(0.1 * NSEC_PER_SEC));
+                              (uint64_t)(0.12 * NSEC_PER_SEC), (uint64_t)(0.03 * NSEC_PER_SEC));
     __weak typeof(self) weakSelf = self;
     dispatch_source_set_event_handler(_timer, ^{
         [weakSelf grabOnce];
@@ -201,7 +201,7 @@ typedef size_t (*NSSurfaceSizeFn)(IOSurfaceRef buffer);
                 CGImageDestinationRef dest = CGImageDestinationCreateWithData(
                     (__bridge CFMutableDataRef)jpeg, (__bridge CFStringRef)@"public.jpeg", 1, NULL);
                 if (dest) {
-                    NSDictionary *opts = @{(__bridge NSString *)kCGImageDestinationLossyCompressionQuality: @0.45};
+                    NSDictionary *opts = @{(__bridge NSString *)kCGImageDestinationLossyCompressionQuality: @0.5};
                     CGImageDestinationAddImage(dest, out_img, (__bridge CFDictionaryRef)opts);
                     CGImageDestinationFinalize(dest);
                     CFRelease(dest);

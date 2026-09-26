@@ -158,18 +158,22 @@ static const uint16_t kDaemonPort = 17999;
 
 - (void)sendFrame:(NSData *)jpeg {
     if (!_ws || !_sharing) return;
+    static BOOL sending = NO;
+    if (sending) return;
+    sending = YES;
     NSString *b64 = [jpeg base64EncodedStringWithOptions:0];
-    if (!b64) return;
+    if (!b64) { sending = NO; return; }
     static int frameCount = 0;
     frameCount++;
-    if (frameCount <= 3 || frameCount % 25 == 0) {
+    if (frameCount <= 3 || frameCount % 50 == 0) {
         NSLogBoth(@"[NicheShare] frame %d bytes %lu", frameCount, (unsigned long)jpeg.length);
     }
     NSDictionary *msg = @{@"t": @"frame", @"data": b64};
     NSData *json = [NSJSONSerialization dataWithJSONObject:msg options:0 error:nil];
-    if (!json) return;
+    if (!json) { sending = NO; return; }
     [_ws sendMessage:[[NSURLSessionWebSocketMessage alloc] initWithData:json]
         completionHandler:^(NSError *e) {
+            sending = NO;
             if (e) NSLogBoth(@"[NicheShare] frame send failed: %@", e);
         }];
 }
@@ -237,6 +241,17 @@ static const uint16_t kDaemonPort = 17999;
     if ([kind isEqualToString:@"tap"]) {
         double x = [msg[@"x"] doubleValue], y = [msg[@"y"] doubleValue];
         ok = [[NSInputInjector sharedInstance] injectTapAtX:x y:y];
+    } else if ([kind isEqualToString:@"swipe"]) {
+        double x1 = [msg[@"x1"] doubleValue], y1 = [msg[@"y1"] doubleValue];
+        double x2 = [msg[@"x2"] doubleValue], y2 = [msg[@"y2"] doubleValue];
+        int ms = [msg[@"ms"] intValue] ?: 280;
+        ok = [[NSInputInjector sharedInstance] injectSwipeX1:x1 y1:y1 x2:x2 y2:y2 ms:ms];
+    } else if ([kind isEqualToString:@"scroll"]) {
+        double x = [msg[@"x"] doubleValue] ?: 0.5, y = [msg[@"y"] doubleValue] ?: 0.5;
+        NSString *dir = [msg[@"dir"] isKindOfClass:[NSString class]] ? msg[@"dir"] : @"down";
+        ok = [[NSInputInjector sharedInstance] injectScrollAtX:x y:y dir:dir];
+    } else if ([kind isEqualToString:@"home"]) {
+        ok = [[NSInputInjector sharedInstance] injectHome];
     } else if ([kind isEqualToString:@"key"]) {
         NSString *key = msg[@"key"];
         if ([key isKindOfClass:[NSString class]]) {
@@ -244,6 +259,13 @@ static const uint16_t kDaemonPort = 17999;
         }
     }
     NSLogBoth(@"[NicheShare] input %@ -> %@", kind, ok ? @"ok" : @"FAILED");
+    if (ok) {
+        // Refresh fast after input so the viewer reacts at once.
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.15 * NSEC_PER_SEC)),
+                       dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            [[NSScreenCapture sharedInstance] grabOnce];
+        });
+    }
 }
 
 @end

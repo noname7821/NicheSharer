@@ -1,8 +1,18 @@
 <Window x:Class="NicheShareViewer.ScreenWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="NicheShare Screen" Height="700" Width="400"
+        Title="NicheShare Screen" Height="740" Width="400"
         WindowStartupLocation="CenterScreen"
         Background="Black">
-    <Image x:Name="ScreenImage" Stretch="Uniform" MouseLeftButtonDown="Screen_Click"/>
+    <DockPanel>
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Background="#0A0A0F">
+            <Button x:Name="HomeBtn" Content="Home" Margin="8,6" Padding="14,4"
+                    Click="Home_Click"/>
+            <TextBlock Text="drag = swipe, wheel = scroll" VerticalAlignment="Center"
+                       Foreground="#71717A" FontSize="11" Margin="8,0,0,0"/>
+        </StackPanel>
+        <Image x:Name="ScreenImage" Stretch="Uniform"
+               MouseLeftButtonDown="Screen_Down" MouseLeftButtonUp="Screen_Up"
+               MouseMove="Screen_Move" MouseWheel="Screen_Wheel"/>
+    </DockPanel>
 </Window>
