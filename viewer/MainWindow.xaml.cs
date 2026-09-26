@@ -48,7 +48,7 @@ public partial class MainWindow : Window
     private string WsUrl(string code)
     {
         var b = BaseUrl();
-        var ws = b.StartsWith("https", StringComparison.OrdinalIgnoreCase) ? "wss:" : "ws:";
+        var ws = b.StartsWith("https", StringComparison.OrdinalIgnoreCase) ? "wss" : "ws";
         var idx = b.IndexOf(':');
         var rest = idx >= 0 ? b.Substring(idx) : "//" + b;
         return ws + rest + $"/ws?code={code}&role=pc";
