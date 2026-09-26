@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -104,7 +105,7 @@ public partial class MainWindow : Window
                 _screen?.Close();
                 _screen = new ScreenWindow(code);
                 _screen.Closed += (_, _) => _screen = null;
-                _screen.Clicked += (x, y) => SendInput($"{{\"t\":\"input\",\"kind\":\"tap\",\"x\":{x:F4},\"y\":{y:F4}}}");
+                _screen.Clicked += (x, y) => SendInput($"{{\"t\":\"input\",\"kind\":\"tap\",\"x\":{x.ToString("F4", CultureInfo.InvariantCulture)},\"y\":{y.ToString("F4", CultureInfo.InvariantCulture)}}}");
                 _screen.Show();
             });
 
