@@ -58,8 +58,9 @@ public partial class MainWindow : Window
         {
             // Check room first.
             using var http = new HttpClient();
-            var res = await http.GetAsync($"{BaseUrl()}/api/room/{code}");
-            if (!res.IsSuccessStatusCode) { SetStatus(false, "No such room (expired?)"); return; }
+            var checkUrl = $"{BaseUrl()}/api/room/{code}";
+            var res = await http.GetAsync(checkUrl);
+            if (!res.IsSuccessStatusCode) { SetStatus(false, "No such room (expired?)"); Log($"room check: {checkUrl} -> {(int)res.StatusCode}"); return; }
             var info = JsonDocument.Parse(await res.Content.ReadAsStringAsync()).RootElement;
             if (!info.GetProperty("hasPhone").GetBoolean()) { SetStatus(false, "Phone not connected yet"); return; }
 
