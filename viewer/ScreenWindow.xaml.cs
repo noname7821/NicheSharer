@@ -13,6 +13,7 @@ public partial class ScreenWindow : Window
     public event Action<double, double, double, double>? Swiped;
     public event Action<double, double, string>? Scrolled;
     public event Action? HomePressed;
+    public event Action<string>? KeyPressed;
 
     // Keep for old callers.
     public event Action<double, double>? Clicked
@@ -95,4 +96,18 @@ public partial class ScreenWindow : Window
     }
 
     private void Home_Click(object sender, RoutedEventArgs e) => HomePressed?.Invoke();
+
+    private void Screen_Key(object sender, KeyEventArgs e)
+    {
+        string? key = e.Key switch
+        {
+            Key.Enter => "Enter",
+            Key.Back => "Backspace",
+            Key.Space => " ",
+            _ when e.Key >= Key.A && e.Key <= Key.Z => e.Key.ToString().ToLower(),
+            _ when e.Key >= Key.D0 && e.Key <= Key.D9 => ((char)('0' + (e.Key - Key.D0))).ToString(),
+            _ => null,
+        };
+        if (key != null) KeyPressed?.Invoke(key);
+    }
 }

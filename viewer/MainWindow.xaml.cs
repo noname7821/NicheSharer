@@ -108,6 +108,7 @@ public partial class MainWindow : Window
                 _screen.Swiped += (x1, y1, x2, y2) => SendInput($"{{\"t\":\"input\",\"kind\":\"swipe\",\"x1\":{x1.ToString("F4", CultureInfo.InvariantCulture)},\"y1\":{y1.ToString("F4", CultureInfo.InvariantCulture)},\"x2\":{x2.ToString("F4", CultureInfo.InvariantCulture)},\"y2\":{y2.ToString("F4", CultureInfo.InvariantCulture)},\"ms\":280}}");
                 _screen.Scrolled += (x, y, dir) => SendInput($"{{\"t\":\"input\",\"kind\":\"scroll\",\"x\":{x.ToString("F4", CultureInfo.InvariantCulture)},\"y\":{y.ToString("F4", CultureInfo.InvariantCulture)},\"dir\":\"{dir}\"}}");
                 _screen.HomePressed += () => SendInput("{\"t\":\"input\",\"kind\":\"home\"}");
+                _screen.KeyPressed += key => SendInput(KeyJson(key));
                 _screen.Show();
             });
 
@@ -172,19 +173,30 @@ public partial class MainWindow : Window
         Dispatcher.Invoke(() => Log("sent " + json));
     }
 
+    // Sends over USB when connected, else over the relay socket.
+    private void SendActive(string json)
+    {
+        if (_usbWriter != null) SendUsb(json);
+        else SendInput(json);
+    }
+
+    private static string KeyJson(string key) => $"{{\"t\":\"input\",\"kind\":\"key\",\"key\":\"{key}\"}}";
+
+    private static string? MapKey(Key k) => k switch
+    {
+        Key.Enter => "Enter",
+        Key.Back => "Backspace",
+        Key.Space => " ",
+        _ when k >= Key.A && k <= Key.Z => k.ToString().ToLower(),
+        _ when k >= Key.D0 && k <= Key.D9 => ((char)('0' + (k - Key.D0))).ToString(),
+        _ => null,
+    };
+
     private void Window_KeyDown(object sender, KeyEventArgs e)
     {
-        if (_ws?.State != WebSocketState.Open || e.Source is System.Windows.Controls.TextBox) return;
-        string? key = e.Key switch
-        {
-            Key.Enter => "Enter",
-            Key.Back => "Backspace",
-            Key.Space => " ",
-            _ when e.Key >= Key.A && e.Key <= Key.Z => e.Key.ToString().ToLower(),
-            _ when e.Key >= Key.D0 && e.Key <= Key.D9 => ((char)('0' + (e.Key - Key.D0))).ToString(),
-            _ => null,
-        };
-        if (key != null) SendInput($"{{\"t\":\"input\",\"kind\":\"key\",\"key\":\"{key}\"}}");
+        if (e.Source is System.Windows.Controls.TextBox) return;
+        var key = MapKey(e.Key);
+        if (key != null) SendActive(KeyJson(key));
     }
 
     private void Leave_Click(object sender, RoutedEventArgs e) => Leave("Not connected");
@@ -215,6 +227,7 @@ public partial class MainWindow : Window
                 _screen.Swiped += (x1, y1, x2, y2) => SendUsb($"{{\"t\":\"input\",\"kind\":\"swipe\",\"x1\":{F(x1)},\"y1\":{F(y1)},\"x2\":{F(x2)},\"y2\":{F(y2)},\"ms\":280}}");
                 _screen.Scrolled += (x, y, dir) => SendUsb($"{{\"t\":\"input\",\"kind\":\"scroll\",\"x\":{F(x)},\"y\":{F(y)},\"dir\":\"{dir}\"}}");
                 _screen.HomePressed += () => SendUsb("{\"t\":\"input\",\"kind\":\"home\"}");
+                _screen.KeyPressed += key => SendUsb(KeyJson(key));
                 _screen.Show();
             });
             _ = UsbReceiveLoop();

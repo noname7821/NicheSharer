@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="NicheShare Screen" Height="740" Width="400"
         WindowStartupLocation="CenterScreen"
-        Background="Black">
+        Background="Black" KeyDown="Screen_Key">
     <DockPanel>
         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Background="#0A0A0F">
             <Button x:Name="HomeBtn" Content="Home" Margin="8,6" Padding="14,4"
