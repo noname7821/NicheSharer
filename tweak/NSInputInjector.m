@@ -48,7 +48,7 @@
     if (!ready) return NULL;
     uint64_t now = mach_absolute_time();
     AbsoluteTime t = *(AbsoluteTime *)&now;
-    uint32_t mask = NSDigitizerEventTouch | NSDigitizerEventIdentity | NSDigitizerEventRange;
+    uint32_t mask = NSDigitizerEventTouch | NSDigitizerEventIdentity;
     IOHIDEventRef parent = (IOHIDEventRef)createParent(
         kCFAllocatorDefault, now, 3, 0, 0, mask, 0, 0, 0, 0, 0, 0, 0,
         down ? 1 : 0, 0);
@@ -94,7 +94,7 @@
         (NSSystemClientDispatchFn)dlsym(RTLD_DEFAULT, "IOHIDEventSystemClientDispatchEvent");
     NSSetSenderFn setSender =
         (NSSetSenderFn)dlsym(RTLD_DEFAULT, "IOHIDEventSetSenderID");
-    if (setSender) setSender(event, 0x8000000817319372ULL);
+    if (setSender) setSender(event, 0x8000000817319371ULL);
     if (dispatchEv) {
         dispatchEv(client, event);
     } else {
@@ -112,18 +112,14 @@
         NSLogBoth(@"[NicheShare] event system missing");
         return NO;
     }
-    uint32_t finger = ++_fingerIndex;
+    uint32_t finger = 2;
     NSLogBoth(@"[NicheShare] tap %f %f finger %u", x, y, finger);
     IOHIDEventRef down = [self tapEventDown:YES x:x y:y finger:finger];
-    IOHIDEventRef up = [self tapEventDown:NO x:x y:y finger:finger];
-    if (!down || !up) {
-        if (down) CFRelease(down);
-        if (up) CFRelease(up);
-        return NO;
-    }
+    if (!down) return NO;
     [self sendHIDEvent:down];
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.06 * NSEC_PER_SEC)),
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.05 * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
+        IOHIDEventRef up = [self tapEventDown:NO x:x y:y finger:finger];
         [self sendHIDEvent:up];
     });
     return YES;
