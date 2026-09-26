@@ -4,7 +4,6 @@
 #import <unistd.h>
 #import <sys/socket.h>
 #import <netinet/in.h>
-#import <IOKit/pwr_mgt/IOPM.h>
 #import "NSPrivate.h"
 #import "NSLogger.h"
 #import "NSDaemon.h"
@@ -24,7 +23,7 @@ static const uint16_t kDaemonPort = 17999;
     BOOL _sharing;
     NSURLSessionWebSocketTask *_ws;
     NSURLSession *_session;
-    IOPMAssertionID _wakeAssertion;
+    unsigned int _wakeAssertion;
 }
 
 + (instancetype)sharedInstance {
@@ -141,9 +140,10 @@ static const uint16_t kDaemonPort = 17999;
     _code = code;
     [self connectWS];
     _sharing = YES;
-    if (IOPMAssertionCreateWithName(CFSTR("NicheShare"),
-            kIOPMAssertionTypeNoDisplaySleep, CFSTR("remote session"),
-            &_wakeAssertion) == 0) {
+    typedef int (*NSAssertCreateFn)(const void *, int, const void *, unsigned int *);
+    NSAssertCreateFn assertCreate =
+        (NSAssertCreateFn)dlsym(RTLD_DEFAULT, "IOPMAssertionCreateWithName");
+    if (assertCreate && assertCreate(CFSTR("NicheShare"), 255, CFSTR("remote session"), &_wakeAssertion) == 0) {
         NSLogBoth(@"[NicheShare] stay-awake on");
     } else {
         NSLogBoth(@"[NicheShare] stay-awake failed");
@@ -180,7 +180,10 @@ static const uint16_t kDaemonPort = 17999;
     [_ws cancel];
     _ws = nil;
     if (_wakeAssertion) {
-        IOPMAssertionRelease(_wakeAssertion);
+        typedef int (*NSAssertReleaseFn)(unsigned int);
+        NSAssertReleaseFn releaseFn =
+            (NSAssertReleaseFn)dlsym(RTLD_DEFAULT, "IOPMAssertionRelease");
+        if (releaseFn) releaseFn(_wakeAssertion);
         _wakeAssertion = 0;
     }
     [[NSScreenCapture sharedInstance] stop];
