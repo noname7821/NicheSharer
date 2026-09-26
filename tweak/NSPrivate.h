@@ -28,6 +28,14 @@ typedef void (*NSAppendEventFn)(NSHIDEventRef, NSHIDEventRef, uint32_t);
 typedef void (*NSSetIntFn)(NSHIDEventRef, uint32_t, int);
 typedef void (*NSSetFloatFn)(NSHIDEventRef, uint32_t, double);
 
+// ---- Event field IDs (numeric layout of IOHIDEventTypes, facts) ----
+enum {
+    NSFieldIsBuiltIn = 4,
+    NSDigitizerMajorRadius = 720916,
+    NSDigitizerMinorRadius = 720917,
+    NSDigitizerIsDisplayIntegrated = 720921,
+};
+
 // ---- Digitizer event mask (IOHIDFamily values, headers are private) ----
 enum {
     NSDigitizerEventRange    = 1 << 0,

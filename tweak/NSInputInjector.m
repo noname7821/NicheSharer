@@ -26,11 +26,6 @@
     return shared;
 }
 
-- (int)eventField:(const char *)name {
-    int *p = dlsym(RTLD_DEFAULT, name);
-    return p ? *p : -1;
-}
-
 // One full tap side (down or up): parent container plus child finger.
 // x/y arrive normalized 0..1 from the viewer.
 - (IOHIDEventRef)tapEventDown:(BOOL)down x:(double)x y:(double)y finger:(uint32_t)finger {
@@ -58,18 +53,8 @@
         kCFAllocatorDefault, now, 3, 0, 0, mask, 0, 0, 0, 0, 0, 0, 0,
         down ? 1 : 0, 0);
     if (!parent) return NULL;
-    int builtIn = [self eventField:"kIOHIDEventFieldIsBuiltIn"];
-    int integrated = [self eventField:"kIOHIDEventFieldDigitizerIsDisplayIntegrated"];
-    int minorF = [self eventField:"kIOHIDEventFieldDigitizerMinorRadius"];
-    int majorF = [self eventField:"kIOHIDEventFieldDigitizerMajorRadius"];
-    static BOOL fieldsLogged = NO;
-    if (!fieldsLogged) {
-        fieldsLogged = YES;
-        NSLogBoth(@"[NicheShare] fields: builtIn=%d integrated=%d minor=%d major=%d",
-            builtIn, integrated, minorF, majorF);
-    }
-    if (builtIn >= 0) setInt(parent, (uint32_t)builtIn, 1);
-    if (integrated >= 0) setInt(parent, (uint32_t)integrated, 1);
+    setInt(parent, NSFieldIsBuiltIn, 1);
+    setInt(parent, NSDigitizerIsDisplayIntegrated, 1);
     double radius = down ? 5.0 : 0.0;
     IOHIDEventRef child = (IOHIDEventRef)createFinger(
         kCFAllocatorDefault, t, finger, finger, mask,
@@ -79,8 +64,8 @@
         CFRelease(parent);
         return NULL;
     }
-    if (minorF >= 0) setFloat(child, (uint32_t)minorF, radius);
-    if (majorF >= 0) setFloat(child, (uint32_t)majorF, radius);
+    setFloat(child, NSDigitizerMinorRadius, radius);
+    setFloat(child, NSDigitizerMajorRadius, radius);
     appendEv(parent, child, 0);
     CFRelease(child);
     return parent;
