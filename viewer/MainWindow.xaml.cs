@@ -40,7 +40,9 @@ public partial class MainWindow : Window
     {
         var b = ServerBox.Text.Trim().TrimEnd('/');
         if (!b.Contains("://")) b = "https://" + b;
-        return b;
+        // Tolerate pasted page URLs: keep scheme + host only.
+        try { return new Uri(b).GetLeftPart(UriPartial.Authority).TrimEnd('/'); }
+        catch { return b; }
     }
 
     private string WsUrl(string code)
