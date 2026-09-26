@@ -147,7 +147,7 @@
     uint32_t pmask = NSDigitizerEventPosition | NSDigitizerEventAttribute;
     uint32_t cmask = NSDigitizerEventPosition | NSDigitizerEventAttribute;
     IOHIDEventRef parent = (IOHIDEventRef)createParent(
-        kCFAllocatorDefault, now, 3, 0, 0, pmask, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0);
+        kCFAllocatorDefault, now, 3, 0, 0, pmask, 0, 0, 0, 0, 0, 0, 0, 1, 0);
     if (!parent) return NULL;
     setInt(parent, NSFieldIsBuiltIn, 1);
     setInt(parent, NSDigitizerIsDisplayIntegrated, 1);
