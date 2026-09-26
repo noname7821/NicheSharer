@@ -67,6 +67,7 @@
             <TextBox x:Name="CodeBox" Width="110" Style="{StaticResource DarkBox}" MaxLength="6"
                      HorizontalContentAlignment="Center" FontFamily="Consolas"/>
             <Button x:Name="ConnectBtn" Content="Connect" Style="{StaticResource MainBtn}" Margin="12,0,0,0" Click="Connect_Click"/>
+            <Button x:Name="UsbBtn" Content="Connect USB" Style="{StaticResource GhostBtn}" Margin="8,0,0,0" Click="UsbConnect_Click"/>
             <Button x:Name="LeaveBtn" Content="Leave" Style="{StaticResource GhostBtn}" Margin="8,0,0,0"
                     Visibility="Collapsed" Click="Leave_Click"/>
         </StackPanel>

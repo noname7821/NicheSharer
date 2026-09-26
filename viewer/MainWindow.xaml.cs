@@ -3,6 +3,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
@@ -22,6 +23,9 @@ public partial class MainWindow : Window
     private CancellationTokenSource? _cts;
     private System.Timers.Timer? _ping;
     private ScreenWindow? _screen;
+    private TcpClient? _usb;
+    private StreamReader? _usbReader;
+    private StreamWriter? _usbWriter;
 
     public MainWindow()
     {
@@ -99,6 +103,7 @@ public partial class MainWindow : Window
             SetStatus(true, $"Connected to {code}");
             Log($"joined room {code}");
             ConnectBtn.Visibility = Visibility.Collapsed;
+            UsbBtn.Visibility = Visibility.Collapsed;
             LeaveBtn.Visibility = Visibility.Visible;
             Dispatcher.Invoke(() =>
             {
@@ -190,6 +195,86 @@ public partial class MainWindow : Window
 
     private void Leave_Click(object sender, RoutedEventArgs e) => Leave("Not connected");
 
+    // USB direct: iPhone USB -> iproxy 18000 18000 -> 127.0.0.1:18000. No relay server.
+    private async void UsbConnect_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            CloseUsb();
+            _usb = new TcpClient();
+            await _usb.ConnectAsync("127.0.0.1", 18000);
+            var ns = _usb.GetStream();
+            _usbReader = new StreamReader(ns, Encoding.UTF8);
+            _usbWriter = new StreamWriter(ns, Encoding.UTF8) { AutoFlush = true };
+            SetStatus(true, "USB connected");
+            Log("usb connected");
+            ConnectBtn.Visibility = Visibility.Collapsed;
+            UsbBtn.Visibility = Visibility.Collapsed;
+            LeaveBtn.Visibility = Visibility.Visible;
+            Dispatcher.Invoke(() =>
+            {
+                _screen?.Close();
+                _screen = new ScreenWindow("USB");
+                _screen.Closed += (_, _) => _screen = null;
+                _screen.Tapped += (x, y) => SendUsb($"{{\"t\":\"input\",\"kind\":\"tap\",\"x\":{F(x)},\"y\":{F(y)}}}");
+                _screen.Swiped += (x1, y1, x2, y2) => SendUsb($"{{\"t\":\"input\",\"kind\":\"swipe\",\"x1\":{F(x1)},\"y1\":{F(y1)},\"x2\":{F(x2)},\"y2\":{F(y2)},\"ms\":280}}");
+                _screen.Scrolled += (x, y, dir) => SendUsb($"{{\"t\":\"input\",\"kind\":\"scroll\",\"x\":{F(x)},\"y\":{F(y)},\"dir\":\"{dir}\"}}");
+                _screen.HomePressed += () => SendUsb("{\"t\":\"input\",\"kind\":\"home\"}");
+                _screen.Show();
+            });
+            _ = UsbReceiveLoop();
+        }
+        catch (Exception ex)
+        {
+            SetStatus(false, "USB failed: " + ex.Message);
+            Log("usb: run iproxy 18000 18000 first (phone via USB)");
+        }
+    }
+
+    private static string F(double v) => v.ToString("F4", CultureInfo.InvariantCulture);
+
+    private async Task UsbReceiveLoop()
+    {
+        try
+        {
+            string? line;
+            while (_usbReader != null && (line = await _usbReader.ReadLineAsync()) != null)
+            {
+                try
+                {
+                    var msg = JsonDocument.Parse(line).RootElement;
+                    var type = msg.GetProperty("t").GetString();
+                    if (type == "frame")
+                    {
+                        var bytes = Convert.FromBase64String(msg.GetProperty("data").GetString()!);
+                        Dispatcher.Invoke(() => _screen?.SetFrame(bytes));
+                    }
+                    else if (type == "hello")
+                    {
+                        Dispatcher.Invoke(() => Log("usb: phone hello"));
+                    }
+                }
+                catch { /* ignore bad lines */ }
+            }
+        }
+        catch { /* closed */ }
+        if (_usb != null) Dispatcher.Invoke(() => Leave("USB closed"));
+    }
+
+    private void SendUsb(string json)
+    {
+        try { _usbWriter?.WriteLineAsync(json); } catch { /* ignore */ }
+        Dispatcher.Invoke(() => Log("sent " + json));
+    }
+
+    private void CloseUsb()
+    {
+        try { _usbWriter?.Close(); } catch { }
+        try { _usbReader?.Close(); } catch { }
+        try { _usb?.Close(); } catch { }
+        _usbWriter = null; _usbReader = null; _usb = null;
+    }
+
     private void CopyLogs_Click(object sender, RoutedEventArgs e)
     {
         try
@@ -208,12 +293,14 @@ public partial class MainWindow : Window
         try { _cts?.Cancel(); } catch { }
         try { _ws?.Abort(); } catch { }
         _ws = null;
+        CloseUsb();
         SetStatus(false, text);
         Dispatcher.Invoke(() =>
         {
             try { _screen?.Close(); } catch { }
             _screen = null;
             ConnectBtn.Visibility = Visibility.Visible;
+            UsbBtn.Visibility = Visibility.Visible;
             LeaveBtn.Visibility = Visibility.Collapsed;
         });
     }

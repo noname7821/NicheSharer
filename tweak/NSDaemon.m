@@ -2,6 +2,7 @@
 #import <UIKit/UIKit.h>
 #import <dlfcn.h>
 #import <unistd.h>
+#import <string.h>
 #import <sys/socket.h>
 #import <netinet/in.h>
 #import "NSPrivate.h"
@@ -15,6 +16,7 @@
 // - the server over websocket as role=phone
 
 static const uint16_t kDaemonPort = 17999;
+static const uint16_t kUSBPort = 18000;
 
 @implementation NSDaemon {
     BOOL _started;
@@ -24,6 +26,7 @@ static const uint16_t kDaemonPort = 17999;
     NSURLSessionWebSocketTask *_ws;
     NSURLSession *_session;
     unsigned int _wakeAssertion;
+    NSMutableSet<NSNumber *> *_usbClients;
 }
 
 + (instancetype)sharedInstance {
@@ -46,10 +49,14 @@ static const uint16_t kDaemonPort = 17999;
 - (void)start {
     if (_started) return;
     _started = YES;
+    _usbClients = [NSMutableSet set];
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_BACKGROUND, 0), ^{
         [self acceptLoop];
     });
-    NSLogBoth(@"[NicheShare] daemon on 127.0.0.1:%d", kDaemonPort);
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_BACKGROUND, 0), ^{
+        [self usbAcceptLoop];
+    });
+    NSLogBoth(@"[NicheShare] daemon on 127.0.0.1:%d usb on 127.0.0.1:%d", kDaemonPort, kUSBPort);
 }
 
 #pragma mark - App channel
@@ -140,6 +147,12 @@ static const uint16_t kDaemonPort = 17999;
     _code = code;
     [self connectWS];
     _sharing = YES;
+    [self stayAwake];
+    [self ensureCapture];
+    return code;
+}
+
+- (void)stayAwake {
     typedef int (*NSAssertCreateFn)(const void *, int, const void *, unsigned int *);
     NSAssertCreateFn assertCreate =
         (NSAssertCreateFn)dlsym(RTLD_DEFAULT, "IOPMAssertionCreateWithName");
@@ -148,16 +161,29 @@ static const uint16_t kDaemonPort = 17999;
     } else {
         NSLogBoth(@"[NicheShare] stay-awake failed");
     }
+}
+
+- (void)ensureCapture {
+    if ([[NSScreenCapture sharedInstance] running]) return;
     [[NSScreenCapture sharedInstance] startWithHandler:^(IOSurfaceRef surface, CGSize size) {
         if (!surface) return;
         NSData *jpeg = [[NSScreenCapture sharedInstance] jpegFromSurface:surface size:size];
-        if (jpeg) [self sendFrame:jpeg];
+        if (!jpeg) return;
+        [self sendFrame:jpeg];
+        [self sendUSBFrame:jpeg];
     }];
-    return code;
+    NSLogBoth(@"[NicheShare] capture ensured");
+}
+
+- (void)maybeStopCapture {
+    if (_sharing) return;
+    @synchronized(self) {
+        if (_usbClients.count) return;
+    }
+    [[NSScreenCapture sharedInstance] stop];
 }
 
 - (void)sendFrame:(NSData *)jpeg {
-    if (!_ws || !_sharing) return;
     static BOOL sending = NO;
     if (sending) return;
     sending = YES;
@@ -190,7 +216,7 @@ static const uint16_t kDaemonPort = 17999;
         if (releaseFn) releaseFn(_wakeAssertion);
         _wakeAssertion = 0;
     }
-    [[NSScreenCapture sharedInstance] stop];
+    [self maybeStopCapture];
 }
 
 - (void)connectWS {
@@ -235,7 +261,11 @@ static const uint16_t kDaemonPort = 17999;
     NSData *data = [raw dataUsingEncoding:NSUTF8StringEncoding];
     NSDictionary *msg = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
     if (![msg isKindOfClass:[NSDictionary class]]) return;
-    if (![msg[@"t"] isEqualToString:@"input"]) return;
+    [self handleInputDict:msg];
+}
+
+- (BOOL)handleInputDict:(NSDictionary *)msg {
+    if (![msg[@"t"] isEqualToString:@"input"]) return NO;
     NSString *kind = msg[@"kind"];
     BOOL ok = NO;
     if ([kind isEqualToString:@"tap"]) {
@@ -265,6 +295,83 @@ static const uint16_t kDaemonPort = 17999;
                        dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
             [[NSScreenCapture sharedInstance] grabOnce];
         });
+    }
+    return ok;
+}
+
+#pragma mark - USB direct (usbmuxd, no relay server)
+
+// Local TCP on 127.0.0.1:18000, JSON lines both ways.
+// PC forwards it over USB (iproxy 18000 18000), viewer talks directly.
+- (void)usbAcceptLoop {
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd < 0) return;
+    int one = 1;
+    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+    struct sockaddr_in addr = {0};
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(kUSBPort);
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) != 0) { close(fd); return; }
+    if (listen(fd, 2) != 0) { close(fd); return; }
+    while (_started) {
+        int c = accept(fd, NULL, NULL);
+        if (c < 0) continue;
+        int nosig = 1;
+        setsockopt(c, SOL_SOCKET, SO_NOSIGPIPE, &nosig, sizeof(nosig));
+        @synchronized(self) { [_usbClients addObject:@(c)]; }
+        [self stayAwake];
+        [self ensureCapture];
+        const char *hello = "{\"t\":\"hello\",\"proto\":1}\n";
+        send(c, hello, strlen(hello), 0);
+        NSLogBoth(@"[NicheShare] usb client connected");
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_BACKGROUND, 0), ^{
+            [self usbReadLoop:c];
+        });
+    }
+    close(fd);
+}
+
+- (void)usbReadLoop:(int)c {
+    NSMutableData *buf = [NSMutableData data];
+    char tmp[8192];
+    ssize_t n;
+    while ((n = recv(c, tmp, sizeof(tmp), 0)) > 0) {
+        [buf appendBytes:tmp length:(NSUInteger)n];
+        while (YES) {
+            NSRange nl = [buf rangeOfData:[NSData dataWithBytes:"\n" length:1]
+                                  options:0 range:NSMakeRange(0, buf.length)];
+            if (nl.location == NSNotFound) break;
+            NSData *line = [buf subdataWithRange:NSMakeRange(0, nl.location)];
+            [buf replaceBytesInRange:NSMakeRange(0, nl.location + 1) withBytes:NULL length:0];
+            NSDictionary *msg = [NSJSONSerialization JSONObjectWithData:line options:0 error:nil];
+            if ([msg isKindOfClass:[NSDictionary class]]) [self handleInputDict:msg];
+        }
+    }
+    close(c);
+    @synchronized(self) { [_usbClients removeObject:@(c)]; }
+    NSLogBoth(@"[NicheShare] usb client left");
+    [self maybeStopCapture];
+}
+
+- (void)sendUSBFrame:(NSData *)jpeg {
+    NSArray *clients;
+    @synchronized(self) {
+        if (!_usbClients.count) return;
+        clients = [_usbClients allObjects];
+    }
+    NSString *b64 = [jpeg base64EncodedStringWithOptions:0];
+    if (!b64) return;
+    NSString *line = [NSString stringWithFormat:@"{\"t\":\"frame\",\"data\":\"%@\"}\n", b64];
+    NSData *pkt = [line dataUsingEncoding:NSUTF8StringEncoding];
+    if (!pkt) return;
+    for (NSNumber *num in clients) {
+        int c = [num intValue];
+        ssize_t s = send(c, pkt.bytes, pkt.length, 0);
+        if (s < 0) {
+            close(c);
+            @synchronized(self) { [_usbClients removeObject:num]; }
+        }
     }
 }
 

@@ -75,11 +75,15 @@
 - (void)sendHIDEvent:(IOHIDEventRef)event {
     if (!event) return;
     static NSEventSystemClientRef client = NULL;
+    static dispatch_queue_t hidQueue = NULL;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         NSSystemClientCreateFn create =
             (NSSystemClientCreateFn)dlsym(RTLD_DEFAULT, "IOHIDEventSystemClientCreate");
         if (create) client = create(kCFAllocatorDefault);
+        hidQueue = dispatch_queue_create("com.nicheshare.hid",
+            dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL,
+                QOS_CLASS_USER_INTERACTIVE, 0));
         NSSystemClientDispatchFn dispatchEv =
             (NSSystemClientDispatchFn)dlsym(RTLD_DEFAULT, "IOHIDEventSystemClientDispatchEvent");
         NSSetSenderFn setSender =
@@ -87,21 +91,24 @@
         NSLogBoth(@"[NicheShare] inject path: client=%p dispatch=%p sender=%p",
             client, dispatchEv, setSender);
     });
-    if (!client) {
+    if (!client || !hidQueue) {
         CFRelease(event);
         return;
     }
-    NSSystemClientDispatchFn dispatchEv =
-        (NSSystemClientDispatchFn)dlsym(RTLD_DEFAULT, "IOHIDEventSystemClientDispatchEvent");
-    NSSetSenderFn setSender =
-        (NSSetSenderFn)dlsym(RTLD_DEFAULT, "IOHIDEventSetSenderID");
-    if (setSender) setSender(event, 0x8000000817319371ULL);
-    if (dispatchEv) {
-        dispatchEv(client, event);
-    } else {
-        NSLogBoth(@"[NicheShare] dispatch missing");
-    }
-    CFRelease(event);
+    // Serial queue keeps down/move/up order. Ownership moves into the block.
+    dispatch_async(hidQueue, ^{
+        NSSystemClientDispatchFn dispatchEv =
+            (NSSystemClientDispatchFn)dlsym(RTLD_DEFAULT, "IOHIDEventSystemClientDispatchEvent");
+        NSSetSenderFn setSender =
+            (NSSetSenderFn)dlsym(RTLD_DEFAULT, "IOHIDEventSetSenderID");
+        if (setSender) setSender(event, 0x8000000817319371ULL);
+        if (dispatchEv) {
+            dispatchEv(client, event);
+        } else {
+            NSLogBoth(@"[NicheShare] dispatch missing");
+        }
+        CFRelease(event);
+    });
 }
 
 - (BOOL)injectTapAtX:(CGFloat)x y:(CGFloat)y {
@@ -114,11 +121,13 @@
         return NO;
     }
     uint32_t finger = 2;
+    x = MIN(MAX(x, 0.0), 1.0);
+    y = MIN(MAX(y, 0.0), 1.0);
     NSLogBoth(@"[NicheShare] tap %f %f finger %u", x, y, finger);
     IOHIDEventRef down = [self tapEventDown:YES x:x y:y finger:finger];
     if (!down) return NO;
     [self sendHIDEvent:down];
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.05 * NSEC_PER_SEC)),
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.06 * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
         IOHIDEventRef up = [self tapEventDown:NO x:x y:y finger:finger];
         [self sendHIDEvent:up];
@@ -204,16 +213,38 @@
 
 - (BOOL)injectHome {
     id app = [UIApplication sharedApplication];
-    NSArray *sels = @[@"_simulateHomeButtonPress", @"simulateHomeButtonPress",
-                      @"handleHomeButtonSinglePressUp", @"clickedMenuButton"];
-    for (NSString *name in sels) {
+    NSArray *appSels = @[@"_simulateHomeButtonPress", @"simulateHomeButtonPress"];
+    for (NSString *name in appSels) {
         SEL sel = NSSelectorFromString(name);
         if ([app respondsToSelector:sel]) {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
             [app performSelector:sel];
 #pragma clang diagnostic pop
-            NSLogBoth(@"[NicheShare] home via %@", name);
+            NSLogBoth(@"[NicheShare] home via app %@", name);
+            return YES;
+        }
+        NSLogBoth(@"[NicheShare] home miss app %@", name);
+    }
+    Class sbuiCls = NSClassFromString(@"SBUIController");
+    id ui = nil;
+    if (sbuiCls && [sbuiCls respondsToSelector:@selector(sharedInstance)]) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+        ui = [sbuiCls performSelector:@selector(sharedInstance)];
+#pragma clang diagnostic pop
+    }
+    NSLogBoth(@"[NicheShare] home sbui=%p", ui);
+    NSArray *uiSels = @[@"clickedMenuButton", @"handleHomeButtonSinglePressUp",
+                        @"activateHomeScreen", @"goHome"];
+    for (NSString *name in uiSels) {
+        SEL sel = NSSelectorFromString(name);
+        if (ui && [ui respondsToSelector:sel]) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+            [ui performSelector:sel];
+#pragma clang diagnostic pop
+            NSLogBoth(@"[NicheShare] home via sbui %@", name);
             return YES;
         }
     }
