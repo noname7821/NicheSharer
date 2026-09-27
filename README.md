@@ -1,53 +1,83 @@
-# NicheShare (Phase 1: pairing + remote input loop)
+# NicheShare
 
-Jailbreak receiver app for screen sharing + remote control, powered by a
-FlashDrop-style code server. The iPhone shows a code, the PC enters it and
-gets the screen plus remote access.
+Remote-view and remote-control your jailbroken iPhone from a Windows PC.
+The phone streams its screen live, the PC sends back taps, swipes, scrolls,
+keyboard input and the Home button. Two ways to connect: **USB (fast, no
+server)** or **6-digit code (over the internet)**.
 
-## Honest roadmap
+## Features
 
-| Phase | What | Status |
-|---|---|---|
-| 1 | Signaling server (rooms by code), PC viewer, phone simulator | **done, tested** |
-| 3a | Jailbreak tweak scaffold: daemon + pairing + capture ticks + input path (Theos, builds `.deb` in CI) | **here now** |
-| 2/3b | Real screen frames (VideoToolbox H.264 + WebRTC) + verified touch injection on-device | next |
+- Live screen (~30fps JPEG stream, only sends changed frames)
+- Tap, drag = swipe, mouse wheel = scroll
+- PC keyboard types on the phone (tap a text field first)
+- Home button (real button press on Touch ID devices, gesture fallback)
+- USB direct mode via bundled `iproxy` (autostarted by the viewer)
+- Code mode via signaling server (rooms expire after 10 minutes)
+- Auto-reconnect + stay-awake while sharing
 
-Why this order: viewing needs a capture pipeline, control needs a jailbreak
-tweak. Nothing of that can be tested from here, so Phase 1 proves the loop
-(code -> connect -> input events arrive) with a simulated phone today.
+## Requirements
 
-## Run it
+- Jailbroken iPhone (tested on Dopamine, iOS 15.8.8, rootless)
+- Windows 10/11 PC
+- USB cable + Apple USB driver (iTunes or 3uTools) for USB mode
 
-```bash
-npm install
-node server.js
-```
+## Install (iPhone)
 
-- Phone sim: http://localhost:3001/phone.html -> Start sharing -> note the code
-- PC viewer: http://localhost:3001/viewer.html -> enter code -> Connect
-- Click the pad / type: the phone sim logs every input event. That exact
-  JSON is what the real tweak will later turn into touches.
+1. Install the `.deb` from the [latest release](../../releases/latest)
+   (Sileo/Filza or `dpkg -i`, then respring).
+2. Open the NicheShare app and tap **Start sharing**.
+3. USB mode just works once the viewer connects.
+   Code mode shows a 6-digit code in the app.
 
-## Protocol (for the iOS app + tweak)
+## Use (PC)
+
+Unzip `NicheShareViewer-win-x64.zip` from the release and start
+`NicheShareViewer.exe` (keep the `tools/` folder next to it).
+
+- **USB:** plug the phone in via USB, click **Connect USB**.
+  The viewer starts its bundled `iproxy` itself, nothing to install.
+- **Code:** enter the 6-digit code from the app, click **Connect**.
+  Server is fixed to `https://nichesharer.onrender.com`.
+
+In the screen window: click = tap, drag = swipe, wheel = scroll,
+type = keyboard, **Home** button = Home.
+
+## Protocol
+
+USB mode speaks JSON lines over TCP `127.0.0.1:18000` (forwarded by
+usbmuxd, same schema as the websocket below).
 
 - `POST /api/room` -> `{ code }` (6 digits, 10 min TTL)
 - `GET /api/room/:code` -> `{ exists, hasPhone, viewers, status }`
-- `POST /api/room/:code/heartbeat` `{ status }` (phone keep-alive)
 - `WS /ws?code=..&role=phone|pc`
-  - pc -> phone: `{ t:'input', kind:'tap'|'key', x, y, key }` (x/y 0..1)
-  - phone -> pc: `{ t:'status', sharing, note }`, later `{ t:'frame', data }` (base64 jpeg)
+  - pc -> phone: `{ t:'input', kind:'tap'|'swipe'|'scroll'|'home'|'key', ... }`
+    (coords normalized 0..1)
+  - phone -> pc: `{ t:'frame', data }` (base64 JPEG), `{ t:'status', ... }`
   - either: `{ t:'ping' }` -> `{ t:'pong' }`
 
-## Deploy (Render)
+## Build
 
-Build: `npm install`, Start: `node server.js`. No disk needed (rooms are
-in-memory, like FlashDrop codes).
+- Tweak: Theos, builds `.deb` in CI (`.github/workflows/tweak.yml`)
+- Viewer: `dotnet build -c Release viewer/` (needs .NET 8 SDK)
+- Server: `npm install && node server.js`
 
-## Jailbreak notes (Phase 3)
+## Layout
 
-- Capture: snapshot `IOSurface` of the main display (or `IOMobileFramebuffer`),
-  encode H.264 with VideoToolbox, send via WebRTC datachannel or WS frames.
-- Control: inject `BKSHIDEvent` touch/key events through backboardd
-  (requires jailbreak entitlements, same class of API Esign-era tweaks used).
-- The tweak ships the receiver; the homescreen app only shows the code and
-  start/stop, like planned.
+| Path | What |
+|---|---|
+| `tweak/` | Jailbreak tweak (capture, HID input, USB + WS daemon) |
+| `viewer/` | Windows PC viewer (WPF, bundled iproxy) |
+| `app/` | Native receiver app (code display, start/stop) |
+| `server.js` + `public/` | Signaling server + web viewer |
+
+## Credits
+
+Touch injection follows the technique pioneered by
+[TrollVNC](https://github.com/OwnGoalStudio/TrollVNC)
+(`IOHIDEventSystemClient` + digitizer events). Bundled `iproxy` comes
+from [libimobiledevice](https://libimobiledevice.org/).
+
+## Copyright
+
+Copyright (c) 2026 noname7821. See [LICENSE](LICENSE).
+Jailbreak-only: remote control is impossible on stock iOS (sandbox).
